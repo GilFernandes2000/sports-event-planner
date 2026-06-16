@@ -191,6 +191,10 @@ body {
   background: rgba(239, 68, 68, 0.12);
   border-color: rgba(239, 68, 68, 0.4);
 }
+.banner.info {
+  background: rgba(249, 115, 22, 0.12);
+  border-color: rgba(249, 115, 22, 0.35);
+}
 .error {
   color: #fca5a5;
   font-size: 14px;
@@ -329,6 +333,84 @@ label.checkbox {
 .player-name {
   font-weight: 700;
   font-size: 16px;
+}
+.player-name-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.player-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player-avatar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface-2, #2a2418);
+  color: var(--muted, #9a9080);
+  font-weight: 700;
+  line-height: 1;
+}
+.player-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.player-avatar-fallback {
+  font-size: 0.42em;
+  letter-spacing: 0.02em;
+}
+.player-avatar-sm {
+  width: 22px;
+  height: 22px;
+  font-size: 22px;
+}
+.player-avatar-md {
+  width: 32px;
+  height: 32px;
+  font-size: 32px;
+}
+.player-avatar-lg {
+  width: 64px;
+  height: 64px;
+  font-size: 64px;
+}
+.chip .player-name-row {
+  gap: 6px;
+}
+.chip .player-name-text {
+  font-weight: 600;
+}
+.member-names {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 0;
+}
+.member-name-item {
+  display: inline-flex;
+  align-items: center;
+}
+.photo-field-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+.photo-field-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.photo-field-actions input[type="file"] {
+  max-width: 100%;
 }
 .player-meta {
   font-size: 13px;
@@ -881,4 +963,102 @@ span.tournament-pick {
     padding: 5px 2px;
     font-size: 11px;
   }
+}
+
+/* ---- Homepage login ---- */
+.home-page {
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.home-card {
+  width: 100%;
+  max-width: 420px;
+  margin: auto;
+  padding: 24px 20px;
+}
+
+.home-brand {
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.home-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.home-form .label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+
+.home-organiser {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.btn-link {
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--accent-soft);
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-link.sm {
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.btn-google {
+  width: 100%;
+  background: #fff;
+  color: #3c4043;
+  border-color: #dadce0;
+  margin-top: 4px;
+}
+
+.btn-google:hover {
+  background: #f8f9fa;
+}
+
+.tournament-name {
+  font-weight: 700;
+  font-size: 14px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tournament-pick.row {
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.password-edit {
+  margin-top: 8px;
+}
+
+.password-edit input {
+  flex: 1;
+  min-width: 120px;
+}
+
+.muted.sm {
+  font-size: 13px;
+  margin: 0;
 }

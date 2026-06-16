@@ -1,10 +1,11 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { games, players, teams, tournaments } from "../db/repo.js";
+import { games, teams, tournaments } from "../db/repo.js";
 import type { MatchInput, MatchSide } from "../db/repo.js";
-import { requireAdmin } from "../services/auth.js";
+import { requireAdminGame, requireAdminTournament, requireTournamentAccess } from "../services/auth.js";
 import { buildRoundRobin, buildSingleElimination, buildRepechage } from "../services/schedule.js";
 import { ratePlayers } from "../services/balance.js";
 import { gameView } from "../services/stats.js";
+import { playersForTournament } from "../services/player-scope.js";
 
 function requireTournament(tid: number, reply: FastifyReply): boolean {
   if (!tournaments.get(tid)) {
@@ -16,7 +17,9 @@ function requireTournament(tid: number, reply: FastifyReply): boolean {
 
 /** Teams in a tournament with their combined fairness rating (for seeding/tie-breaks). */
 function teamsWithRating(tid: number): { id: number; rating: number }[] {
-  const ratingByPlayer = new Map(ratePlayers(players.all()).map((r) => [r.player.id, r.rating] as const));
+  const ratingByPlayer = new Map(
+    ratePlayers(playersForTournament(tid)).map((r) => [r.player.id, r.rating] as const)
+  );
   return teams.byTournament(tid).map((t) => ({
     id: t.id,
     rating: Math.round(teams.membersOf(t.id).reduce((s, m) => s + (ratingByPlayer.get(m.id) ?? 0), 0) * 10) / 10,
@@ -53,15 +56,15 @@ function parseSide(
 }
 
 export default async function gameRoutes(app: FastifyInstance) {
-  // Public: schedule/bracket for a tournament.
-  app.get("/api/tournaments/:tid/games", async (req, reply) => {
+  // Participant: schedule/bracket for a tournament.
+  app.get("/api/tournaments/:tid/games", { preHandler: requireTournamentAccess }, async (req, reply) => {
     const tid = Number((req.params as { tid: string }).tid);
     if (!requireTournament(tid, reply)) return;
     return games.byTournament(tid).map((g) => gameView(g));
   });
 
   // Admin: generate a round-robin from this tournament's teams (replaces games).
-  app.post("/api/tournaments/:tid/round-robin", { preHandler: requireAdmin }, async (req, reply) => {
+  app.post("/api/tournaments/:tid/round-robin", { preHandler: requireAdminTournament }, async (req, reply) => {
     const tid = Number((req.params as { tid: string }).tid);
     if (!requireTournament(tid, reply)) return;
     const current = teams.byTournament(tid);
@@ -72,7 +75,7 @@ export default async function gameRoutes(app: FastifyInstance) {
   });
 
   // Admin: generate a seeded single-elimination knockout (replaces games).
-  app.post("/api/tournaments/:tid/knockout", { preHandler: requireAdmin }, async (req, reply) => {
+  app.post("/api/tournaments/:tid/knockout", { preHandler: requireAdminTournament }, async (req, reply) => {
     const tid = Number((req.params as { tid: string }).tid);
     if (!requireTournament(tid, reply)) return;
     const rated = teamsWithRating(tid);
@@ -85,7 +88,7 @@ export default async function gameRoutes(app: FastifyInstance) {
   });
 
   // Admin: create a second-chance repechage among the best first-round losers.
-  app.post("/api/tournaments/:tid/repechage", { preHandler: requireAdmin }, async (req, reply) => {
+  app.post("/api/tournaments/:tid/repechage", { preHandler: requireAdminTournament }, async (req, reply) => {
     const tid = Number((req.params as { tid: string }).tid);
     if (!requireTournament(tid, reply)) return;
 
@@ -141,7 +144,7 @@ export default async function gameRoutes(app: FastifyInstance) {
   });
 
   // Admin: create a custom match (teams and/or winner-of/loser-of links).
-  app.post("/api/tournaments/:tid/games", { preHandler: requireAdmin }, async (req, reply) => {
+  app.post("/api/tournaments/:tid/games", { preHandler: requireAdminTournament }, async (req, reply) => {
     const tid = Number((req.params as { tid: string }).tid);
     if (!requireTournament(tid, reply)) return;
     const body = req.body as { label?: string; round?: number; stage?: string; sideA?: SidePayload; sideB?: SidePayload };
@@ -162,7 +165,7 @@ export default async function gameRoutes(app: FastifyInstance) {
   });
 
   // Admin: edit a match definition (teams/sources/label/round).
-  app.put("/api/games/:id/match", { preHandler: requireAdmin }, async (req, reply) => {
+  app.put("/api/games/:id/match", { preHandler: requireAdminGame }, async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
     const game = games.get(id);
     if (!game) return reply.code(404).send({ error: "Match not found." });
@@ -184,7 +187,7 @@ export default async function gameRoutes(app: FastifyInstance) {
   });
 
   // Admin: delete a match.
-  app.delete("/api/games/:id", { preHandler: requireAdmin }, async (req, reply) => {
+  app.delete("/api/games/:id", { preHandler: requireAdminGame }, async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
     if (!games.get(id)) return reply.code(404).send({ error: "Match not found." });
     games.remove(id);
@@ -192,7 +195,7 @@ export default async function gameRoutes(app: FastifyInstance) {
   });
 
   // Admin: enter / update a result and per-player points.
-  app.put("/api/games/:id/result", { preHandler: requireAdmin }, async (req, reply) => {
+  app.put("/api/games/:id/result", { preHandler: requireAdminGame }, async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
     const game = games.get(id);
     if (!game) return reply.code(404).send({ error: "Game not found." });

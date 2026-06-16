@@ -4,6 +4,7 @@ import { useAdmin } from "../AdminContext";
 import { useTournament } from "../TournamentContext";
 import { useI18n } from "../i18n";
 import NoTournament from "../components/NoTournament";
+import { PlayerName } from "../components/PlayerAvatar";
 import type { Player } from "../types";
 
 interface LocalTeam {
@@ -167,7 +168,7 @@ export default function Teams() {
         onClick={() => tapPlayer(id)}
         disabled={locked || !isAdmin}
       >
-        <span className="chip-name">{p.name}</span>
+        <PlayerName id={id} name={p.name} hasPhoto={p.has_photo} size="sm" className="chip-name" />
         <span className="chip-rating">{p.rating}</span>
       </button>
     );

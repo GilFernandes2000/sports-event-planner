@@ -21,8 +21,8 @@ and be opened by everyone on the same Wi-Fi.
 - **Frontend:** React + TypeScript + Vite (mobile-first).
 - **Backend:** Node.js + Fastify, serving both the API and the built frontend.
 - **Database:** SQLite via `better-sqlite3` (a single file, no separate server).
-- **Access control:** public self-enrollment + a single shared **admin password**
-  that unlocks score entry, team management and deletions.
+- **Access control:** organiser **accounts** (email/password or Google) each own their
+  tournaments; participants enter with tournament name + participant password.
 
 ---
 
@@ -39,8 +39,10 @@ npm run dev
 - Frontend (with hot reload) runs on `http://localhost:5173` and proxies `/api`
   calls to the backend.
 
-The default admin password in development is `changeme`. Set your own with an
-environment variable: `ADMIN_PASSWORD=secret npm run dev`.
+The default organiser flow in development: open the home page, choose **Create an
+account** (or use Google if configured), then create a tournament on **Events**.
+
+Set `PUBLIC_URL` and optional Google OAuth vars in `.env` (see `.env.example`).
 
 ---
 
@@ -49,7 +51,7 @@ environment variable: `ADMIN_PASSWORD=secret npm run dev`.
 ```bash
 npm install
 npm run build      # builds the frontend into ./dist
-ADMIN_PASSWORD=your-secret npm start
+npm start
 ```
 
 `npm start` runs the Fastify server, which serves the API **and** the built
@@ -72,19 +74,40 @@ On startup the server prints every URL it can be reached at on your network.
    npm run build
    ```
 
-3. **Set your admin password and start it:**
+3. **Configure and start:**
 
    ```bash
-   cp .env.example .env     # then edit .env and set ADMIN_PASSWORD
-   ADMIN_PASSWORD="your-secret" npm start
+   cp .env.example .env     # set PUBLIC_URL; optional Google OAuth
+   npm start
    ```
 
-   (Environment variables in `.env` are read by your shell/process manager; the
-   simplest path is to pass `ADMIN_PASSWORD` inline as shown.)
+4. **Find the Pi's IP** (`hostname -I`) and share `https://<your-domain>` (or
+   `http://<pi-ip>:3000` on a trusted LAN) with everyone. They enter the
+   **tournament name and participant password** on the home page. Organisers
+   **create an account** to manage their tournaments.
 
-4. **Find the Pi's IP** (`hostname -I`) and share `http://<pi-ip>:3000` with
-   everyone. They can enroll and watch standings; you log in as **Admin** (top
-   right) with your password to manage teams and enter scores.
+### Exposing on the internet
+
+Use **HTTPS** in front of the app (Caddy, nginx, Cloudflare, or your host's
+TLS). Never send passwords over plain HTTP.
+
+- Organisers register with email/password or Google; each account only sees its own
+  tournaments.
+- When creating a tournament, set a strong **participant password** (random string).
+  Share the tournament name and password with players.
+- Login attempts are rate-limited (10 per 15 minutes per IP).
+- Participant sessions expire after 7 days; they can re-enter with the password.
+
+Example with [Caddy](https://caddyserver.com/) reverse proxy:
+
+```text
+your-domain.example {
+  reverse_proxy localhost:3000
+}
+```
+
+Run the app with `PUBLIC_URL` set and ensure `DB_PATH` is on a persistent
+volume with restricted file permissions.
 
 ### Keep it running after reboot (optional)
 
@@ -92,7 +115,7 @@ Using `pm2`:
 
 ```bash
 sudo npm install -g pm2
-ADMIN_PASSWORD="your-secret" pm2 start "npm start" --name bball
+pm2 start "npm start" --name bball
 pm2 save
 pm2 startup        # follow the printed instructions
 ```
@@ -106,7 +129,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=/home/pi/sports-event-planner
-Environment=ADMIN_PASSWORD=your-secret
+Environment=PUBLIC_URL=https://your-domain.example
 Environment=PORT=3000
 ExecStart=/usr/bin/npm start
 Restart=on-failure
@@ -126,7 +149,7 @@ sudo systemctl enable --now bball
 
 ```bash
 docker build -t bball .
-docker run -p 3000:3000 -e ADMIN_PASSWORD=your-secret -v "$(pwd)/data:/data" -e DB_PATH=/data/data.db bball
+docker run -p 3000:3000 -e PUBLIC_URL=https://your-domain.example -v "$(pwd)/data:/data" -e DB_PATH=/data/data.db bball
 ```
 
 The volume keeps your `data.db` between restarts.
@@ -162,13 +185,15 @@ them.
 
 ## Daily flow on game day
 
-1. Share the URL; friends open **Enroll** and add themselves.
-2. As organiser, log in via **Admin**.
-3. Go to **Teams** -> *Generate balanced teams* -> swap/rename if you like ->
+1. Create a tournament on the **Events** page (admin) with a participant password.
+   Share the tournament name and password with friends.
+2. Friends open the home page, enter the name and password, then use **Enroll**.
+3. As organiser, log in via **Admin**.
+4. Go to **Teams** -> *Generate balanced teams* -> swap/rename if you like ->
    *Lock & schedule*.
-4. Open **Games** and enter each player's points; *Save as final* when a game
+5. Open **Games** and enter each player's points; *Save as final* when a game
    ends. Optionally *Add an extra game* for a final between the top two.
-5. Everyone watches **Standings** update live.
+6. Everyone watches **Standings** update live.
 
 ---
 
@@ -178,17 +203,17 @@ them.
 server/
   index.ts            # Fastify app, serves API + built frontend
   db/                 # SQLite connection, schema, data-access layer
-  routes/             # players, teams, games, stats, admin
+  routes/             # players, teams, games, stats, admin, access
   services/           # balance (fairness), schedule (round-robin), stats, auth
 src/
-  pages/              # Enroll, Players, Teams, Dashboard (Games), Stats
+  pages/              # Home, Enroll, Players, Teams, Dashboard (Games), Stats
   api.ts              # typed fetch client
   AdminContext.tsx    # admin login state
+  TournamentAccessContext.tsx  # participant tournament session
 ```
 
 ## Notes / out of scope
 
-- One shared admin password (no per-user accounts).
-- Designed for a trusted local network; it does not set up HTTPS or expose
-  itself to the public internet.
+- Open organiser registration (email/password or Google); each account owns its tournaments.
+- HTTPS must be configured at the reverse proxy for public internet use.
 - Standings refresh when you navigate between tabs (no live websockets).

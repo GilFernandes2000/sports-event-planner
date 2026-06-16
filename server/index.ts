@@ -6,13 +6,15 @@ import { existsSync } from "node:fs";
 import { networkInterfaces } from "node:os";
 
 import "./db/index.js"; // initialise DB + schema on boot
+import rateLimit from "@fastify/rate-limit";
 import playerRoutes from "./routes/players.js";
 import tournamentRoutes from "./routes/tournaments.js";
 import teamRoutes from "./routes/teams.js";
 import gameRoutes from "./routes/games.js";
 import statsRoutes from "./routes/stats.js";
 import adminRoutes from "./routes/admin.js";
-import { usingDefaultPassword } from "./services/auth.js";
+import accessRoutes from "./routes/access.js";
+import { googleOAuthEnabled } from "./services/google-auth.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === "production";
@@ -21,6 +23,11 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 const app = Fastify({ logger: { level: isProd ? "info" : "warn" } });
 
+await app.register(rateLimit, {
+  global: false,
+});
+
+await app.register(accessRoutes);
 await app.register(adminRoutes);
 await app.register(playerRoutes);
 await app.register(tournamentRoutes);
@@ -63,8 +70,10 @@ try {
   if (!existsSync(distDir)) {
     console.log("\n  (dev) Frontend served by Vite on http://localhost:5173");
   }
-  if (usingDefaultPassword()) {
-    console.log('\n  WARNING: ADMIN_PASSWORD not set. Using default "changeme". Set it before your event.');
+  if (googleOAuthEnabled()) {
+    console.log("  Google sign-in: enabled");
+  } else {
+    console.log("  Google sign-in: disabled (set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to enable)");
   }
   console.log("");
 } catch (err) {

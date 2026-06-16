@@ -5,7 +5,7 @@ import type { Game, Player } from "../types.js";
 export interface TeamStanding {
   teamId: number;
   name: string;
-  members: { id: number; name: string }[];
+  members: { id: number; name: string; has_photo: number }[];
   played: number;
   wins: number;
   losses: number;
@@ -19,6 +19,7 @@ export interface TeamStanding {
 export interface PlayerLeader {
   playerId: number;
   name: string;
+  has_photo: number;
   teamName: string | null;
   gamesPlayed: number;
   totalPoints: number;
@@ -55,7 +56,11 @@ export function computeStats(tournamentId: number): StatsResponse {
     standings.set(t.id, {
       teamId: t.id,
       name: t.name,
-      members: (membersByTeam.get(t.id) ?? []).map((m) => ({ id: m.id, name: m.name })),
+      members: (membersByTeam.get(t.id) ?? []).map((m) => ({
+        id: m.id,
+        name: m.name,
+        has_photo: m.has_photo,
+      })),
       played: 0,
       wins: 0,
       losses: 0,
@@ -106,18 +111,25 @@ export function computeStats(tournamentId: number): StatsResponse {
   }
 
   const finalIds = new Set(finals.map((g) => g.id));
-  const perPlayer = new Map<number, { name: string; gp: number; pts: number }>();
+  const perPlayer = new Map<number, { name: string; has_photo: number; gp: number; pts: number }>();
   if (finalIds.size > 0) {
     const placeholders = [...finalIds].map(() => "?").join(",");
     const detailed = db
       .prepare(
-        `SELECT pgs.player_id AS playerId, p.name AS name, pgs.game_id AS gameId, pgs.points AS points
+        `SELECT pgs.player_id AS playerId, p.name AS name, p.has_photo AS has_photo,
+                pgs.game_id AS gameId, pgs.points AS points
          FROM player_game_stats pgs JOIN players p ON p.id = pgs.player_id
          WHERE pgs.game_id IN (${placeholders})`
       )
-      .all(...finalIds) as { playerId: number; name: string; gameId: number; points: number }[];
+      .all(...finalIds) as {
+      playerId: number;
+      name: string;
+      has_photo: number;
+      gameId: number;
+      points: number;
+    }[];
     for (const d of detailed) {
-      const cur = perPlayer.get(d.playerId) ?? { name: d.name, gp: 0, pts: 0 };
+      const cur = perPlayer.get(d.playerId) ?? { name: d.name, has_photo: d.has_photo, gp: 0, pts: 0 };
       cur.gp += 1;
       cur.pts += d.points;
       perPlayer.set(d.playerId, cur);
@@ -128,6 +140,7 @@ export function computeStats(tournamentId: number): StatsResponse {
     .map(([playerId, v]) => ({
       playerId,
       name: v.name,
+      has_photo: v.has_photo,
       teamName: teamNameByPlayer.get(playerId) ?? null,
       gamesPlayed: v.gp,
       totalPoints: v.pts,
@@ -173,7 +186,12 @@ function placeholderName(sourceMatchId: number | null, result: string | null): s
 export function gameView(g: Game) {
   const stats = gamesRepo.statsFor(g.id);
   const pointsByPlayer = new Map(stats.map((s) => [s.player_id, s.points] as const));
-  const decorate = (m: Player) => ({ id: m.id, name: m.name, points: pointsByPlayer.get(m.id) ?? 0 });
+  const decorate = (m: Player) => ({
+    id: m.id,
+    name: m.name,
+    has_photo: m.has_photo,
+    points: pointsByPlayer.get(m.id) ?? 0,
+  });
 
   const side = (
     teamId: number | null,
@@ -192,7 +210,7 @@ export function gameView(g: Game) {
     return {
       id: null,
       name: placeholderName(sourceMatchId, sourceResult),
-      members: [] as { id: number; name: string; points: number }[],
+      members: [] as { id: number; name: string; has_photo: number; points: number }[],
       placeholder: true as const,
     };
   };

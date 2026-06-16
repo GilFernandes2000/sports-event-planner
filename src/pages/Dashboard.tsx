@@ -5,6 +5,7 @@ import { useTournament } from "../TournamentContext";
 import { useI18n } from "../i18n";
 import NoTournament from "../components/NoTournament";
 import BracketFlow from "../components/BracketFlow";
+import { PlayerName } from "../components/PlayerAvatar";
 import type { Game, Team } from "../types";
 
 /* --------------------------- Match definition form --------------------------- */
@@ -251,7 +252,7 @@ function GameCard({
               <div className="muted entry-team-name">{s.name}</div>
               {s.members.map((m) => (
                 <label className="entry-row" key={m.id}>
-                  <span>{m.name}</span>
+                  <PlayerName id={m.id} name={m.name} hasPhoto={m.has_photo} size="sm" />
                   <input
                     type="number"
                     inputMode="numeric"
@@ -282,7 +283,7 @@ function GameCard({
               <div className="muted">{s.name}</div>
               {s.members.map((m) => (
                 <div className="boxscore-row" key={m.id}>
-                  <span>{m.name}</span>
+                  <PlayerName id={m.id} name={m.name} hasPhoto={m.has_photo} size="sm" />
                   <span>{m.points}</span>
                 </div>
               ))}

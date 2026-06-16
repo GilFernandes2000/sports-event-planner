@@ -6,7 +6,7 @@ export default function NoTournament() {
   return (
     <div className="empty">
       {t("noTournament.pre")}
-      <Link to="/tournaments">{t("nav.events")}</Link>
+      <Link to="/tournaments">{t("noTournament.link")}</Link>
       {t("noTournament.post")}
     </div>
   );

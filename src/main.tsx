@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AdminProvider } from "./AdminContext";
+import { TournamentAccessProvider } from "./TournamentAccessContext";
 import { TournamentProvider } from "./TournamentContext";
 import { I18nProvider } from "./i18n";
 import "./styles.css";
@@ -12,9 +13,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <BrowserRouter>
       <I18nProvider>
         <AdminProvider>
-          <TournamentProvider>
-            <App />
-          </TournamentProvider>
+          <TournamentAccessProvider>
+            <TournamentProvider>
+              <App />
+            </TournamentProvider>
+          </TournamentAccessProvider>
         </AdminProvider>
       </I18nProvider>
     </BrowserRouter>

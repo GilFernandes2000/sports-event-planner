@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api, type PlayerPayload } from "../api";
 import { useAdmin } from "../AdminContext";
 import { useI18n } from "../i18n";
+import PhotoField from "../components/PhotoField";
+import { PlayerName } from "../components/PlayerAvatar";
 import type { Player } from "../types";
 
 type FormState = {
@@ -54,14 +56,20 @@ function PlayerModal({
   const [form, setForm] = useState<FormState>(() => toForm(player));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      if (player) await api.updatePlayer(player.id, toPayload(form));
-      else await api.createPlayer(toPayload(form));
+      const payload = toPayload(form);
+      let saved: Player;
+      if (player) saved = await api.updatePlayer(player.id, payload);
+      else saved = await api.createPlayer(payload);
+      if (photoFile) await api.uploadPlayerPhoto(saved.id, photoFile);
+      else if (removePhoto && player) await api.deletePlayerPhoto(player.id);
       onSaved();
     } catch (err) {
       setError((err as Error).message);
@@ -78,6 +86,16 @@ function PlayerModal({
           {t("form.name")}
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </label>
+        <PhotoField
+          playerId={player?.id}
+          playerName={form.name || player?.name || ""}
+          hasPhoto={!!player?.has_photo && !removePhoto}
+          onFileChange={(f) => {
+            setPhotoFile(f);
+            if (f) setRemovePhoto(false);
+          }}
+          onRemove={() => setRemovePhoto(true)}
+        />
         <div className="grid-2">
           <label>
             {t("form.age")}
@@ -205,7 +223,7 @@ export default function Players() {
           {players.map((p) => (
             <div className="card player-row" key={p.id}>
               <div className="player-main">
-                <div className="player-name">{p.name}</div>
+                <PlayerName id={p.id} name={p.name} hasPhoto={p.has_photo} />
                 <div className="player-meta muted">
                   {p.age ? t("players.ageY", { n: p.age }) : t("players.ageUnknown")} ·{" "}
                   {p.height_cm ? `${p.height_cm}cm` : "-"} · {p.weight_kg ? `${p.weight_kg}kg` : "-"} ·{" "}

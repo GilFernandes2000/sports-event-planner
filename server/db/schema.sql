@@ -11,12 +11,34 @@ CREATE TABLE IF NOT EXISTS players (
   plays_regularly INTEGER NOT NULL DEFAULT 0,
   skill_self_rating INTEGER NOT NULL DEFAULT 5,
   notes TEXT,
+  has_photo INTEGER NOT NULL DEFAULT 0,
+  admin_id INTEGER REFERENCES admins(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Organiser accounts (each admin owns their tournaments).
+CREATE TABLE IF NOT EXISTS admins (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT,
+  google_id TEXT UNIQUE,
+  display_name TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS tournaments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
+  password_hash TEXT NOT NULL DEFAULT '',
+  admin_id INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Participant sessions scoped to one tournament (separate from admin_tokens).
+CREATE TABLE IF NOT EXISTS tournament_sessions (
+  token TEXT PRIMARY KEY,
+  tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -61,18 +83,19 @@ CREATE TABLE IF NOT EXISTS games (
   played_at TEXT
 );
 
+-- Admin sessions persisted so a server restart does not log the organiser out.
+CREATE TABLE IF NOT EXISTS admin_tokens (
+  token TEXT PRIMARY KEY,
+  admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS player_game_stats (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
   points INTEGER NOT NULL DEFAULT 0,
   UNIQUE (game_id, player_id)
-);
-
--- Admin sessions persisted so a server restart does not log the organiser out.
-CREATE TABLE IF NOT EXISTS admin_tokens (
-  token TEXT PRIMARY KEY,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id);

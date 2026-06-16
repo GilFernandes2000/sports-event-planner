@@ -1,8 +1,12 @@
 import { useState } from "react";
-import { NavLink, Route, Routes } from "react-router-dom";
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useAdmin } from "./AdminContext";
+import { useTournamentAccess } from "./TournamentAccessContext";
 import { useTournament } from "./TournamentContext";
 import { useI18n, LANGUAGES, type Lang } from "./i18n";
+import Home from "./pages/Home";
+import AdminAuthModal from "./components/AdminAuthModal";
+import AuthCallback from "./pages/AuthCallback";
 import Stats from "./pages/Stats";
 import Enroll from "./pages/Enroll";
 import Players from "./pages/Players";
@@ -31,93 +35,95 @@ function LanguageSwitcher() {
 }
 
 function AdminButton() {
-  const { isAdmin, login, logout } = useAdmin();
+  const { isAdmin, admin, logout } = useAdmin();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   if (isAdmin) {
     return (
       <button className="btn btn-ghost" onClick={logout} title={t("admin.exit")}>
-        {t("admin.on")}
+        {admin?.email ?? t("admin.on")}
       </button>
     );
   }
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await login(password);
-      setOpen(false);
-      setPassword("");
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <>
       <button className="btn btn-ghost" onClick={() => setOpen(true)}>
         {t("admin.admin")}
       </button>
-      {open && (
-        <div className="modal-backdrop" onClick={() => setOpen(false)}>
-          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-            <h2>{t("admin.login")}</h2>
-            <p className="muted">{t("admin.prompt")}</p>
-            <input
-              type="password"
-              autoFocus
-              placeholder={t("admin.password")}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            {error && <p className="error">{error}</p>}
-            <div className="row gap">
-              <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>
-                {t("common.cancel")}
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={busy}>
-                {busy ? "..." : t("admin.loginSubmit")}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      <AdminAuthModal open={open} onClose={() => setOpen(false)} />
     </>
   );
 }
 
-function TournamentSelector() {
-  const { tournaments, currentId, select } = useTournament();
+function TournamentHeader() {
+  const { isAdmin } = useAdmin();
+  const { hasAccess, logout: accessLogout } = useTournamentAccess();
+  const { tournaments, current, currentId, select } = useTournament();
   const { t } = useI18n();
-  if (tournaments.length === 0) {
+  const navigate = useNavigate();
+
+  const leaveTournament = () => {
+    accessLogout();
+    navigate("/");
+  };
+
+  if (isAdmin && tournaments.length > 0) {
+    return (
+      <select
+        className="tournament-pick"
+        value={currentId ?? ""}
+        onChange={(e) => select(Number(e.target.value))}
+        aria-label={t("header.selectTournament")}
+      >
+        {tournaments.map((tr) => (
+          <option key={tr.id} value={tr.id}>
+            {tr.name}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  if (hasAccess && current?.name) {
+    return (
+      <div className="tournament-pick row gap">
+        <span className="tournament-name">{current.name}</span>
+        <button className="btn btn-ghost sm" onClick={leaveTournament} title={t("access.exit")}>
+          {t("access.exit")}
+        </button>
+      </div>
+    );
+  }
+
+  if (isAdmin) {
     return <span className="tournament-pick muted">{t("header.noTournaments")}</span>;
   }
-  return (
-    <select
-      className="tournament-pick"
-      value={currentId ?? ""}
-      onChange={(e) => select(Number(e.target.value))}
-      aria-label={t("header.selectTournament")}
-    >
-      {tournaments.map((t) => (
-        <option key={t.id} value={t.id}>
-          {t.name}
-        </option>
-      ))}
-    </select>
-  );
+
+  return null;
 }
 
-export default function App() {
+function AppShell() {
   const { t } = useI18n();
+  const { isAdmin } = useAdmin();
+  const { hasAccess, loading: accessLoading } = useTournamentAccess();
+  const { currentId, loading: tournamentLoading } = useTournament();
+  const location = useLocation();
+
+  if (accessLoading || tournamentLoading) {
+    return <div className="page muted">{t("access.loading")}</div>;
+  }
+
+  const canEnter = hasAccess || isAdmin;
+  if (!canEnter) {
+    return <Navigate to="/" replace state={{ from: location }} />;
+  }
+
+  if (isAdmin && !hasAccess && !currentId && location.pathname !== "/tournaments") {
+    return <Navigate to="/tournaments" replace />;
+  }
+
   return (
     <div className="app">
       <div className="topnav">
@@ -128,13 +134,13 @@ export default function App() {
             </span>
             <span>2v2</span>
           </div>
-          <TournamentSelector />
+          <TournamentHeader />
           <LanguageSwitcher />
           <AdminButton />
         </header>
 
         <nav className="tabs">
-          <NavLink to="/" end>
+          <NavLink to="/standings" end>
             {t("nav.standings")}
           </NavLink>
           <NavLink to="/games">{t("nav.games")}</NavLink>
@@ -148,17 +154,28 @@ export default function App() {
 
       <main className="content">
         <Routes>
-          <Route path="/" element={<Stats />} />
+          <Route path="/standings" element={<Stats />} />
           <Route path="/games" element={<Dashboard />} />
           <Route path="/teams" element={<Teams />} />
           <Route path="/roster" element={<Roster />} />
           <Route path="/enroll" element={<Enroll />} />
           <Route path="/players" element={<Players />} />
           <Route path="/tournaments" element={<Tournaments />} />
+          <Route path="*" element={<Navigate to="/standings" replace />} />
         </Routes>
       </main>
 
       <footer className="footer muted">{t("footer")}</footer>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/*" element={<AppShell />} />
+    </Routes>
   );
 }

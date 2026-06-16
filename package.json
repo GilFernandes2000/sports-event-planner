@@ -2,10 +2,18 @@
   "name": "sports-event-planner",
   "version": "1.0.0",
   "description": "Plan and run a small 2v2 basketball championship: self-enrollment, fairness-balanced teams, and a live scoring dashboard.",
-  "type": "module",
-  "engines": {
-    "node": ">=20"
+  "homepage": "https://github.com/GilFernandes2000/sports-event-planner#readme",
+  "bugs": {
+    "url": "https://github.com/GilFernandes2000/sports-event-planner/issues"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GilFernandes2000/sports-event-planner.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
   "scripts": {
     "dev": "concurrently -n server,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "tsx watch --import ./server/load-env.ts server/index.ts",
@@ -15,10 +23,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fastify/multipart": "^9.0.3",
+    "@fastify/rate-limit": "^10.3.0",
     "@fastify/static": "^9.1.3",
     "better-sqlite3": "^12.10.0",
     "dotenv": "^17.4.2",
     "fastify": "^5.8.5",
+    "google-auth-library": "^9.15.1",
     "i18next": "^26.3.1",
     "i18next-browser-languagedetector": "^8.2.1",
     "react": "^18.3.1",
@@ -37,5 +48,11 @@
     "tsx": "^4.19.1",
     "typescript": "^5.6.2",
     "vite": "^8.0.16"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

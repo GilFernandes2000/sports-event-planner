@@ -1,5 +1,6 @@
 import db from "./index.js";
-import type { Player, Team, Tournament, Game, PlayerGameStat, SourceResult } from "../types.js";
+import type { Player, Team, Tournament, Game, PlayerGameStat, SourceResult, Admin } from "../types.js";
+import { deletePlayerPhoto } from "../services/player-photos.js";
 import type { BracketMatchSpec, BracketSide } from "../services/schedule.js";
 
 /* ----------------------------- Players ----------------------------- */
@@ -19,16 +20,26 @@ export const players = {
   all(): Player[] {
     return db.prepare("SELECT * FROM players ORDER BY name COLLATE NOCASE").all() as Player[];
   },
+  byAdmin(adminId: number): Player[] {
+    return db
+      .prepare("SELECT * FROM players WHERE admin_id = ? ORDER BY name COLLATE NOCASE")
+      .all(adminId) as Player[];
+  },
   get(id: number): Player | undefined {
     return db.prepare("SELECT * FROM players WHERE id = ?").get(id) as Player | undefined;
   },
-  create(p: PlayerInput): Player {
+  getForAdmin(adminId: number, id: number): Player | undefined {
+    return db
+      .prepare("SELECT * FROM players WHERE id = ? AND admin_id = ?")
+      .get(id, adminId) as Player | undefined;
+  },
+  create(p: PlayerInput, adminId: number): Player {
     const info = db
       .prepare(
-        `INSERT INTO players (name, age, height_cm, weight_kg, years_played, plays_regularly, skill_self_rating, notes)
-         VALUES (@name, @age, @height_cm, @weight_kg, @years_played, @plays_regularly, @skill_self_rating, @notes)`
+        `INSERT INTO players (name, age, height_cm, weight_kg, years_played, plays_regularly, skill_self_rating, notes, admin_id)
+         VALUES (@name, @age, @height_cm, @weight_kg, @years_played, @plays_regularly, @skill_self_rating, @notes, @admin_id)`
       )
-      .run({ ...p, plays_regularly: p.plays_regularly ? 1 : 0 });
+      .run({ ...p, plays_regularly: p.plays_regularly ? 1 : 0, admin_id: adminId });
     return this.get(Number(info.lastInsertRowid))!;
   },
   update(id: number, p: PlayerInput): Player | undefined {
@@ -40,7 +51,56 @@ export const players = {
     return this.get(id);
   },
   remove(id: number): void {
+    deletePlayerPhoto(id);
     db.prepare("DELETE FROM players WHERE id = ?").run(id);
+  },
+  setHasPhoto(id: number, hasPhoto: boolean): void {
+    db.prepare("UPDATE players SET has_photo = ? WHERE id = ?").run(hasPhoto ? 1 : 0, id);
+  },
+};
+
+/* ----------------------------- Admins ----------------------------- */
+
+export const admins = {
+  get(id: number): Admin | undefined {
+    return db.prepare("SELECT * FROM admins WHERE id = ?").get(id) as Admin | undefined;
+  },
+  findByEmail(email: string): Admin | undefined {
+    return db
+      .prepare("SELECT * FROM admins WHERE email = ? COLLATE NOCASE")
+      .get(email.trim().toLowerCase()) as Admin | undefined;
+  },
+  findByGoogleId(googleId: string): Admin | undefined {
+    return db.prepare("SELECT * FROM admins WHERE google_id = ?").get(googleId) as Admin | undefined;
+  },
+  create(data: {
+    email: string;
+    passwordHash?: string | null;
+    googleId?: string | null;
+    displayName?: string | null;
+  }): Admin {
+    const info = db
+      .prepare(
+        `INSERT INTO admins (email, password_hash, google_id, display_name)
+         VALUES (?, ?, ?, ?)`
+      )
+      .run(
+        data.email.trim().toLowerCase(),
+        data.passwordHash ?? null,
+        data.googleId ?? null,
+        data.displayName ?? null
+      );
+    return this.get(Number(info.lastInsertRowid))!;
+  },
+  linkGoogle(id: number, googleId: string, displayName: string | null): void {
+    db.prepare("UPDATE admins SET google_id = ?, display_name = COALESCE(?, display_name) WHERE id = ?").run(
+      googleId,
+      displayName,
+      id
+    );
+  },
+  setPassword(id: number, passwordHash: string): void {
+    db.prepare("UPDATE admins SET password_hash = ? WHERE id = ?").run(passwordHash, id);
   },
 };
 
@@ -50,12 +110,35 @@ export const tournaments = {
   all(): Tournament[] {
     return db.prepare("SELECT * FROM tournaments ORDER BY id").all() as Tournament[];
   },
+  byAdmin(adminId: number): Tournament[] {
+    return db
+      .prepare("SELECT * FROM tournaments WHERE admin_id = ? ORDER BY id")
+      .all(adminId) as Tournament[];
+  },
   get(id: number): Tournament | undefined {
     return db.prepare("SELECT * FROM tournaments WHERE id = ?").get(id) as Tournament | undefined;
   },
-  create(name: string): Tournament {
-    const info = db.prepare("INSERT INTO tournaments (name) VALUES (?)").run(name);
+  findByName(name: string): Tournament | undefined {
+    const trimmed = name.trim();
+    if (!trimmed) return undefined;
+    return db
+      .prepare("SELECT * FROM tournaments WHERE name = ? COLLATE NOCASE")
+      .get(trimmed) as Tournament | undefined;
+  },
+  create(name: string, passwordHash: string, adminId: number): Tournament {
+    const info = db
+      .prepare("INSERT INTO tournaments (name, password_hash, admin_id) VALUES (?, ?, ?)")
+      .run(name, passwordHash, adminId);
     return this.get(Number(info.lastInsertRowid))!;
+  },
+  setPassword(id: number, passwordHash: string): void {
+    db.prepare("UPDATE tournaments SET password_hash = ? WHERE id = ?").run(passwordHash, id);
+  },
+  hasPassword(id: number): boolean {
+    const row = db.prepare("SELECT password_hash FROM tournaments WHERE id = ?").get(id) as
+      | { password_hash: string }
+      | undefined;
+    return !!row?.password_hash;
   },
   remove(id: number): void {
     db.prepare("DELETE FROM tournaments WHERE id = ?").run(id);

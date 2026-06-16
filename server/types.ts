@@ -8,12 +8,25 @@ export interface Player {
   plays_regularly: number; // 0 | 1 in SQLite
   skill_self_rating: number;
   notes: string | null;
+  has_photo: number; // 0 | 1 in SQLite
+  admin_id: number | null;
+  created_at: string;
+}
+
+export interface Admin {
+  id: number;
+  email: string;
+  password_hash?: string | null;
+  google_id?: string | null;
+  display_name: string | null;
   created_at: string;
 }
 
 export interface Tournament {
   id: number;
   name: string;
+  password_hash?: string;
+  admin_id: number | null;
   created_at: string;
 }
 

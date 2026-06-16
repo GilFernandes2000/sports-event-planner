@@ -8,6 +8,7 @@ export interface Player {
   plays_regularly: number;
   skill_self_rating: number;
   notes: string | null;
+  has_photo: number;
   created_at: string;
   rating: number;
 }
@@ -29,6 +30,7 @@ export interface TeamMember {
   plays_regularly: number;
   skill_self_rating: number;
   notes: string | null;
+  has_photo: number;
   created_at: string;
 }
 
@@ -50,6 +52,7 @@ export interface TeamsResponse {
 export interface GamePlayer {
   id: number;
   name: string;
+  has_photo: number;
   points: number;
 }
 
@@ -85,7 +88,7 @@ export interface Game {
 export interface TeamStanding {
   teamId: number;
   name: string;
-  members: { id: number; name: string }[];
+  members: { id: number; name: string; has_photo: number }[];
   played: number;
   wins: number;
   losses: number;
@@ -99,6 +102,7 @@ export interface TeamStanding {
 export interface PlayerLeader {
   playerId: number;
   name: string;
+  has_photo: number;
   teamName: string | null;
   gamesPlayed: number;
   totalPoints: number;

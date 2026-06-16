@@ -3,6 +3,7 @@ import { api } from "../api";
 import { useTournament } from "../TournamentContext";
 import { useI18n } from "../i18n";
 import NoTournament from "../components/NoTournament";
+import { PlayerName } from "../components/PlayerAvatar";
 import type { StatsResponse } from "../types";
 
 export default function Stats() {
@@ -45,7 +46,17 @@ export default function Stats() {
         <div className="highlights">
           <div className="card highlight">
             <div className="muted">{t("stats.topScorer")}</div>
-            <div className="big">{highlights.topScorer?.name ?? "-"}</div>
+            <div className="big">
+              {highlights.topScorer ? (
+                <PlayerName
+                  id={highlights.topScorer.playerId}
+                  name={highlights.topScorer.name}
+                  hasPhoto={highlights.topScorer.has_photo}
+                />
+              ) : (
+                "-"
+              )}
+            </div>
             <div className="muted">{highlights.topScorer ? t("stats.pts", { n: highlights.topScorer.totalPoints }) : ""}</div>
           </div>
           <div className="card highlight">
@@ -85,7 +96,14 @@ export default function Stats() {
                       <span className="rank">{i + 1}</span>
                       <div>
                         <div className="team-name-cell">{s.name}</div>
-                        <div className="muted tiny">{s.members.map((m) => m.name).join(" & ")}</div>
+                        <div className="muted tiny member-names">
+                          {s.members.map((m, i) => (
+                            <span key={m.id} className="member-name-item">
+                              {i > 0 && " · "}
+                              <PlayerName id={m.id} name={m.name} hasPhoto={m.has_photo} size="sm" />
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </td>
                     <td>{s.played}</td>
@@ -126,7 +144,7 @@ export default function Stats() {
                     <td className="left">
                       <span className="rank">{i + 1}</span>
                       <div>
-                        <div className="team-name-cell">{p.name}</div>
+                        <PlayerName id={p.playerId} name={p.name} hasPhoto={p.has_photo} />
                         <div className="muted tiny">{p.teamName ?? ""}</div>
                       </div>
                     </td>

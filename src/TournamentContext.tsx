@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api } from "./api";
+import { useAdmin } from "./AdminContext";
+import { useTournamentAccess } from "./TournamentAccessContext";
 import type { Tournament } from "./types";
 
 interface TournamentState {
@@ -15,6 +17,9 @@ const STORAGE_KEY = "bball_current_tournament";
 const TournamentCtx = createContext<TournamentState | null>(null);
 
 export function TournamentProvider({ children }: { children: ReactNode }) {
+  const { isAdmin } = useAdmin();
+  const { hasAccess, tournamentId: accessTournamentId, tournamentName, loading: accessLoading } =
+    useTournamentAccess();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [currentId, setCurrentId] = useState<number | null>(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -28,25 +33,63 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    const list = await api.getTournaments();
-    setTournaments(list);
-    setCurrentId((prev) => {
-      if (prev && list.some((t) => t.id === prev)) return prev;
-      const next = list.length ? list[0].id : null;
-      if (next) localStorage.setItem(STORAGE_KEY, String(next));
-      else localStorage.removeItem(STORAGE_KEY);
-      return next;
-    });
-  }, []);
+    if (isAdmin) {
+      const list = await api.getTournaments();
+      setTournaments(list);
+      setCurrentId((prev) => {
+        if (prev && list.some((t) => t.id === prev)) return prev;
+        const next = list.length ? list[0].id : null;
+        if (next) localStorage.setItem(STORAGE_KEY, String(next));
+        else localStorage.removeItem(STORAGE_KEY);
+        return next;
+      });
+    }
+  }, [isAdmin]);
 
   useEffect(() => {
-    refresh().finally(() => setLoading(false));
-  }, [refresh]);
+    if (accessLoading) return;
+    if (!isAdmin && !hasAccess) {
+      setTournaments([]);
+      setLoading(false);
+      return;
+    }
+    if (isAdmin) {
+      refresh().finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [accessLoading, isAdmin, hasAccess, refresh]);
 
-  const current = tournaments.find((t) => t.id === currentId) ?? null;
+  useEffect(() => {
+    if (hasAccess && accessTournamentId && !isAdmin) {
+      select(accessTournamentId);
+    }
+  }, [hasAccess, accessTournamentId, isAdmin, select]);
+
+  const listed = tournaments.find((t) => t.id === currentId);
+  const participantCurrent =
+    hasAccess && accessTournamentId && currentId === accessTournamentId
+      ? {
+          id: accessTournamentId,
+          name: tournamentName ?? "",
+          created_at: "",
+          counts: listed?.counts ?? { players: 0, teams: 0, games: 0 },
+        }
+      : null;
+
+  const current = listed ?? participantCurrent;
 
   return (
-    <TournamentCtx.Provider value={{ tournaments, current, currentId, loading, select, refresh }}>
+    <TournamentCtx.Provider
+      value={{
+        tournaments,
+        current,
+        currentId,
+        loading: loading || accessLoading,
+        select,
+        refresh,
+      }}
+    >
       {children}
     </TournamentCtx.Provider>
   );

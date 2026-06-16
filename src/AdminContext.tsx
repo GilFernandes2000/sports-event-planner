@@ -1,9 +1,18 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, getToken, setToken } from "./api";
 
+export interface AdminProfile {
+  id: number;
+  email: string;
+  display_name: string | null;
+}
+
 interface AdminState {
   isAdmin: boolean;
-  login: (password: string) => Promise<void>;
+  admin: AdminProfile | null;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<void>;
+  setSession: (token: string, admin: AdminProfile) => void;
   logout: () => void;
 }
 
@@ -11,40 +20,60 @@ const AdminCtx = createContext<AdminState | null>(null);
 
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState<boolean>(!!getToken());
+  const [admin, setAdmin] = useState<AdminProfile | null>(null);
 
   useEffect(() => {
-    // Any API 401 means our token is no longer valid (e.g. revoked).
-    const onUnauth = () => setIsAdmin(false);
+    const onUnauth = () => {
+      setIsAdmin(false);
+      setAdmin(null);
+    };
     window.addEventListener("admin-unauthorized", onUnauth);
 
-    // Confirm an existing token is still accepted by the server on load, so the
-    // UI never shows "Admin: on" while admin actions silently fail.
     if (getToken()) {
       api
         .verify()
-        .then(() => setIsAdmin(true))
+        .then((res) => {
+          setIsAdmin(true);
+          setAdmin(res.admin);
+        })
         .catch(() => {
           setToken(null);
           setIsAdmin(false);
+          setAdmin(null);
         });
     }
 
     return () => window.removeEventListener("admin-unauthorized", onUnauth);
   }, []);
 
-  const login = async (password: string) => {
-    const { token } = await api.login(password);
+  const setSession = (token: string, profile: AdminProfile) => {
     setToken(token);
     setIsAdmin(true);
+    setAdmin(profile);
+  };
+
+  const login = async (email: string, password: string) => {
+    const res = await api.login(email, password);
+    setSession(res.token, res.admin);
+  };
+
+  const register = async (email: string, password: string) => {
+    const res = await api.register(email, password);
+    setSession(res.token, res.admin);
   };
 
   const logout = () => {
     api.logout().catch(() => undefined);
     setToken(null);
     setIsAdmin(false);
+    setAdmin(null);
   };
 
-  return <AdminCtx.Provider value={{ isAdmin, login, logout }}>{children}</AdminCtx.Provider>;
+  return (
+    <AdminCtx.Provider value={{ isAdmin, admin, login, register, setSession, logout }}>
+      {children}
+    </AdminCtx.Provider>
+  );
 }
 
 export function useAdmin(): AdminState {

@@ -1,30 +1,64 @@
 import type { Player, Tournament, TeamsResponse, Game, StatsResponse, SuggestResult } from "./types";
 
-const TOKEN_KEY = "bball_admin_token";
+const ADMIN_TOKEN_KEY = "bball_admin_token";
+const TOURNAMENT_TOKEN_KEY = "bball_tournament_token";
+const TOURNAMENT_ID_KEY = "bball_tournament_access_id";
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(ADMIN_TOKEN_KEY);
 }
 export function setToken(token: string | null): void {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
+  else localStorage.removeItem(ADMIN_TOKEN_KEY);
+}
+
+export function getTournamentToken(): string | null {
+  return localStorage.getItem(TOURNAMENT_TOKEN_KEY);
+}
+export function setTournamentToken(token: string | null): void {
+  if (token) localStorage.setItem(TOURNAMENT_TOKEN_KEY, token);
+  else localStorage.removeItem(TOURNAMENT_TOKEN_KEY);
+}
+
+export function getTournamentAccessId(): number | null {
+  const raw = localStorage.getItem(TOURNAMENT_ID_KEY);
+  return raw ? Number(raw) : null;
+}
+export function setTournamentAccessId(id: number | null): void {
+  if (id) localStorage.setItem(TOURNAMENT_ID_KEY, String(id));
+  else localStorage.removeItem(TOURNAMENT_ID_KEY);
+}
+
+async function authHeaders(contentTypeJson = false): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+  if (contentTypeJson) headers["content-type"] = "application/json";
+  const adminToken = getToken();
+  const tournamentToken = getTournamentToken();
+  if (adminToken) headers["authorization"] = `Bearer ${adminToken}`;
+  if (tournamentToken) headers["x-tournament-token"] = tournamentToken;
+  return headers;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {};
-  // Only declare a JSON body when one is actually sent; Fastify rejects an
-  // empty body when content-type is application/json (FST_ERR_CTP_EMPTY_JSON_BODY),
-  // which would break bodyless POSTs like generate/lock/round-robin.
-  if (options.body) headers["content-type"] = "application/json";
-  const token = getToken();
-  if (token) headers["authorization"] = `Bearer ${token}`;
+  if (options.body && !(options.body instanceof FormData)) headers["content-type"] = "application/json";
+  const auth = await authHeaders();
+  Object.assign(headers, auth);
 
   const res = await fetch(path, { ...options, headers: { ...headers, ...(options.headers as object) } });
 
   if (res.status === 401) {
-    // A stale/invalid token: drop it and let the app reflect logged-out state.
-    setToken(null);
-    window.dispatchEvent(new Event("admin-unauthorized"));
+    const adminToken = getToken();
+    const tournamentToken = getTournamentToken();
+    if (adminToken && path.startsWith("/api/admin")) {
+      setToken(null);
+      window.dispatchEvent(new Event("admin-unauthorized"));
+    }
+    if (tournamentToken && !path.startsWith("/api/admin")) {
+      setTournamentToken(null);
+      setTournamentAccessId(null);
+      window.dispatchEvent(new Event("tournament-unauthorized"));
+    }
   }
 
   if (res.status === 204) return undefined as T;
@@ -61,12 +95,42 @@ export interface MatchPayload {
   sideB: SidePayload;
 }
 
+export interface AccessLoginResponse {
+  token: string;
+  tournament: { id: number; name: string; created_at: string };
+}
+
+export interface AccessVerifyResponse {
+  valid: boolean;
+  tournament: { id: number; name: string; created_at: string } | null;
+}
+
+export interface AdminAuthResponse {
+  token: string;
+  admin: { id: number; email: string; display_name: string | null };
+}
+
 export const api = {
-  // ---- auth ----
-  login: (password: string) =>
-    request<{ token: string }>("/api/admin/login", { method: "POST", body: JSON.stringify({ password }) }),
-  verify: () => request<{ valid: boolean }>("/api/admin/verify"),
+  // ---- tournament access ----
+  accessLogin: (name: string, password: string) =>
+    request<AccessLoginResponse>("/api/access", { method: "POST", body: JSON.stringify({ name, password }) }),
+  accessVerify: () => request<AccessVerifyResponse>("/api/access/verify"),
+  accessLogout: () => request<{ ok: boolean }>("/api/access/logout", { method: "POST" }),
+
+  // ---- admin accounts ----
+  register: (email: string, password: string) =>
+    request<AdminAuthResponse>("/api/admin/register", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+  login: (email: string, password: string) =>
+    request<AdminAuthResponse>("/api/admin/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+  verify: () => request<{ valid: boolean; admin: AdminAuthResponse["admin"] }>("/api/admin/verify"),
   logout: () => request<{ ok: boolean }>("/api/admin/logout", { method: "POST" }),
+  googleOAuthEnabled: () => request<{ enabled: boolean }>("/api/admin/google/enabled"),
 
   // ---- players directory ----
   getPlayers: () => request<Player[]>("/api/players"),
@@ -74,12 +138,28 @@ export const api = {
   updatePlayer: (id: number, p: PlayerPayload) =>
     request<Player>(`/api/players/${id}`, { method: "PUT", body: JSON.stringify(p) }),
   deletePlayer: (id: number) => request<void>(`/api/players/${id}`, { method: "DELETE" }),
+  uploadPlayerPhoto: async (id: number, file: File) => {
+    const form = new FormData();
+    form.append("photo", file);
+    const headers = await authHeaders();
+    const res = await fetch(`/api/players/${id}/photo`, { method: "PUT", body: form, headers });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : null;
+    if (!res.ok) throw new Error((data && data.error) || `Request failed (${res.status})`);
+    return data as Player;
+  },
+  deletePlayerPhoto: (id: number) => request<void>(`/api/players/${id}/photo`, { method: "DELETE" }),
 
   // ---- tournaments ----
   getTournaments: () => request<Tournament[]>("/api/tournaments"),
-  createTournament: (name: string) =>
-    request<Tournament>("/api/tournaments", { method: "POST", body: JSON.stringify({ name }) }),
+  createTournament: (name: string, password: string) =>
+    request<Tournament>("/api/tournaments", { method: "POST", body: JSON.stringify({ name, password }) }),
   deleteTournament: (id: number) => request<void>(`/api/tournaments/${id}`, { method: "DELETE" }),
+  setTournamentPassword: (id: number, password: string) =>
+    request<{ ok: boolean }>(`/api/tournaments/${id}/password`, {
+      method: "PUT",
+      body: JSON.stringify({ password }),
+    }),
 
   // ---- roster ----
   getRoster: (tid: number) => request<Player[]>(`/api/tournaments/${tid}/roster`),

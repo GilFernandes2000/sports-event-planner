@@ -3,6 +3,7 @@ import { api, type PlayerPayload } from "../api";
 import { useTournament } from "../TournamentContext";
 import { useI18n } from "../i18n";
 import NoTournament from "../components/NoTournament";
+import PhotoField from "../components/PhotoField";
 
 const empty = {
   name: "",
@@ -19,6 +20,7 @@ export default function Enroll() {
   const { currentId, current } = useTournament();
   const { t } = useI18n();
   const [form, setForm] = useState({ ...empty });
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +44,10 @@ export default function Enroll() {
         notes: form.notes.trim() || null,
       };
       const created = await api.enroll(currentId, payload);
+      if (photoFile) await api.uploadPlayerPhoto(created.id, photoFile);
       setDone(t("enroll.done", { name: created.name }));
       setForm({ ...empty });
+      setPhotoFile(null);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -70,6 +74,8 @@ export default function Enroll() {
             placeholder={t("enroll.namePlaceholder")}
           />
         </label>
+
+        <PhotoField playerName={form.name} onFileChange={setPhotoFile} />
 
         <div className="grid-2">
           <label>

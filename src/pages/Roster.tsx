@@ -4,6 +4,7 @@ import { useAdmin } from "../AdminContext";
 import { useTournament } from "../TournamentContext";
 import { useI18n } from "../i18n";
 import NoTournament from "../components/NoTournament";
+import { PlayerName } from "../components/PlayerAvatar";
 import type { Player } from "../types";
 
 export default function Roster() {
@@ -116,7 +117,7 @@ export default function Roster() {
                     className={`chip ${picked.has(p.id) ? "chip-selected" : ""}`}
                     onClick={() => toggle(p.id)}
                   >
-                    <span className="chip-name">{p.name}</span>
+                    <PlayerName id={p.id} name={p.name} hasPhoto={p.has_photo} size="sm" className="chip-name" />
                     <span className="chip-rating">{p.rating}</span>
                   </button>
                 ))}
@@ -138,7 +139,7 @@ export default function Roster() {
           {roster.map((p) => (
             <div className="card player-row" key={p.id}>
               <div className="player-main">
-                <div className="player-name">{p.name}</div>
+                <PlayerName id={p.id} name={p.name} hasPhoto={p.has_photo} />
                 <div className="player-meta muted">
                   {p.age ? t("players.ageY", { n: p.age }) : t("players.ageUnknown")} ·{" "}
                   {p.height_cm ? `${p.height_cm}cm` : "-"} · {t("players.yearsPlaying", { n: p.years_played })}

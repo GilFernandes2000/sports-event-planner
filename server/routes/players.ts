@@ -1,7 +1,14 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import multipart from "@fastify/multipart";
 import { players, type PlayerInput } from "../db/repo.js";
 import { ratePlayers } from "../services/balance.js";
-import { requireAdmin } from "../services/auth.js";
+import {
+  canManagePlayerPhoto,
+  canViewPlayer,
+  playerScopeAdminId,
+} from "../services/player-scope.js";
+import { requireAdmin, requireTournamentOrAdmin } from "../services/auth.js";
+import { deletePlayerPhoto, getPlayerPhoto, savePlayerPhoto } from "../services/player-photos.js";
 
 export function parsePlayerInput(body: unknown): { value?: PlayerInput; error?: string } {
   if (typeof body !== "object" || body === null) return { error: "Invalid body." };
@@ -49,33 +56,111 @@ export function parsePlayerInput(body: unknown): { value?: PlayerInput; error?: 
   };
 }
 
+async function requireOwnedPlayer(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  playerId: number
+): Promise<boolean> {
+  if (!req.admin) {
+    reply.code(401).send({ error: "Admin authentication required." });
+    return false;
+  }
+  const player = players.getForAdmin(req.admin.id, playerId);
+  if (!player) {
+    reply.code(404).send({ error: "Player not found." });
+    return false;
+  }
+  return true;
+}
+
+async function requirePlayerPhotoAccess(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  playerId: number
+): Promise<boolean> {
+  const player = players.get(playerId);
+  if (!player) {
+    reply.code(404).send({ error: "Player not found." });
+    return false;
+  }
+  if (!canManagePlayerPhoto(req, playerId)) {
+    reply.code(403).send({ error: "Not allowed to change this player's photo." });
+    return false;
+  }
+  return true;
+}
+
 export default async function playerRoutes(app: FastifyInstance) {
-  // Public: directory of all players with their computed rating.
-  app.get("/api/players", async () => {
-    const rated = ratePlayers(players.all());
+  await app.register(multipart, {
+    limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+  });
+
+  // Participant or admin: this organiser's player directory with computed ratings.
+  app.get("/api/players", { preHandler: requireTournamentOrAdmin }, async (req, reply) => {
+    const adminId = playerScopeAdminId(req);
+    if (adminId === null) return reply.code(401).send({ error: "Tournament access required." });
+    const rated = ratePlayers(players.byAdmin(adminId));
     return rated.map(({ player, rating }) => ({ ...player, rating }));
   });
 
-  // Admin: add a player to the directory.
+  // Participant or admin: serve a player's photo (auth via headers).
+  app.get("/api/players/:id/photo", { preHandler: requireTournamentOrAdmin }, async (req, reply) => {
+    const id = Number((req.params as { id: string }).id);
+    const player = players.get(id);
+    if (!player || !player.has_photo || !canViewPlayer(req, player)) {
+      return reply.code(404).send({ error: "Photo not found." });
+    }
+    const photo = getPlayerPhoto(id);
+    if (!photo) return reply.code(404).send({ error: "Photo not found." });
+    return reply.type(photo.mime).send(photo.buffer);
+  });
+
+  // Admin or tournament participant (roster member): upload/replace photo.
+  app.put("/api/players/:id/photo", { preHandler: requireTournamentOrAdmin }, async (req, reply) => {
+    const id = Number((req.params as { id: string }).id);
+    if (!(await requirePlayerPhotoAccess(req, reply, id))) return;
+
+    const part = await req.file();
+    if (!part) return reply.code(400).send({ error: "Photo file is required." });
+
+    const buffer = await part.toBuffer();
+    const mime = part.mimetype;
+    const saved = savePlayerPhoto(id, buffer, mime);
+    if ("error" in saved) return reply.code(400).send({ error: saved.error });
+
+    players.setHasPhoto(id, true);
+    return players.get(id);
+  });
+
+  // Admin: remove a player's photo.
+  app.delete("/api/players/:id/photo", { preHandler: requireAdmin }, async (req, reply) => {
+    const id = Number((req.params as { id: string }).id);
+    if (!(await requireOwnedPlayer(req, reply, id))) return;
+    deletePlayerPhoto(id);
+    players.setHasPhoto(id, false);
+    return reply.code(204).send();
+  });
+
+  // Admin: add a player to their directory.
   app.post("/api/players", { preHandler: requireAdmin }, async (req, reply) => {
     const { value, error } = parsePlayerInput(req.body);
     if (error) return reply.code(400).send({ error });
-    return players.create(value!);
+    return players.create(value!, req.admin!.id);
   });
 
-  // Admin: edit a player.
+  // Admin: edit a player in their directory.
   app.put("/api/players/:id", { preHandler: requireAdmin }, async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
-    if (!players.get(id)) return reply.code(404).send({ error: "Player not found." });
+    if (!(await requireOwnedPlayer(req, reply, id))) return;
     const { value, error } = parsePlayerInput(req.body);
     if (error) return reply.code(400).send({ error });
     return players.update(id, value!);
   });
 
-  // Admin: remove a player from the directory (and all tournaments).
+  // Admin: remove a player from their directory (and all tournaments).
   app.delete("/api/players/:id", { preHandler: requireAdmin }, async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
-    if (!players.get(id)) return reply.code(404).send({ error: "Player not found." });
+    if (!(await requireOwnedPlayer(req, reply, id))) return;
     players.remove(id);
     return reply.code(204).send();
   });

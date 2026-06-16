@@ -59,12 +59,71 @@ export function runMigrations(db: DB): void {
     db.exec("ALTER TABLE players ADD COLUMN age INTEGER");
   }
 
+  if (tableExists(db, "players") && !hasColumn(db, "players", "has_photo")) {
+    db.exec("ALTER TABLE players ADD COLUMN has_photo INTEGER NOT NULL DEFAULT 0");
+  }
+
   if (tableExists(db, "teams") && !hasColumn(db, "teams", "tournament_id")) {
     db.exec("ALTER TABLE teams ADD COLUMN tournament_id INTEGER");
   }
 
   if (tableExists(db, "games") && !hasColumn(db, "games", "tournament_id")) {
     rebuildGames(db);
+  }
+
+  if (tableExists(db, "tournaments") && !hasColumn(db, "tournaments", "password_hash")) {
+    db.exec("ALTER TABLE tournaments ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''");
+  }
+
+  if (!tableExists(db, "tournament_sessions")) {
+    db.exec(`
+      CREATE TABLE tournament_sessions (
+        token TEXT PRIMARY KEY,
+        tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`);
+  }
+
+  // Admins (and tournaments.admin_id) must exist before players.admin_id backfill.
+  if (!tableExists(db, "admins")) {
+    db.exec(`
+      CREATE TABLE admins (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT,
+        google_id TEXT UNIQUE,
+        display_name TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`);
+  }
+
+  if (tableExists(db, "tournaments") && !hasColumn(db, "tournaments", "admin_id")) {
+    db.exec("ALTER TABLE tournaments ADD COLUMN admin_id INTEGER REFERENCES admins(id) ON DELETE SET NULL");
+  }
+
+  if (tableExists(db, "players") && !hasColumn(db, "players", "admin_id")) {
+    db.exec("ALTER TABLE players ADD COLUMN admin_id INTEGER REFERENCES admins(id) ON DELETE CASCADE");
+    db.exec(`
+      UPDATE players SET admin_id = (
+        SELECT t.admin_id FROM tournament_players tp
+        JOIN tournaments t ON t.id = tp.tournament_id
+        WHERE tp.player_id = players.id AND t.admin_id IS NOT NULL
+        ORDER BY tp.tournament_id LIMIT 1
+      ) WHERE admin_id IS NULL`);
+    db.exec(`
+      UPDATE players SET admin_id = (SELECT id FROM admins ORDER BY id LIMIT 1)
+      WHERE admin_id IS NULL AND EXISTS (SELECT 1 FROM admins)`);
+  }
+
+  if (tableExists(db, "players") && hasColumn(db, "players", "admin_id")) {
+    db.exec("CREATE INDEX IF NOT EXISTS idx_players_admin ON players(admin_id)");
+  }
+
+  if (tableExists(db, "admin_tokens") && !hasColumn(db, "admin_tokens", "admin_id")) {
+    // Legacy tokens have no admin — clear them so everyone re-authenticates.
+    db.exec("DELETE FROM admin_tokens");
+    db.exec("ALTER TABLE admin_tokens ADD COLUMN admin_id INTEGER REFERENCES admins(id) ON DELETE CASCADE");
   }
 
   // Seed a default tournament from any pre-tournament data so nothing is lost.
