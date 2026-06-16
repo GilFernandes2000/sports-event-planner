@@ -4,7 +4,7 @@ import { adminPassword, issueToken, requireAdmin, revokeToken, tokenFromRequest 
 export default async function adminRoutes(app: FastifyInstance) {
   app.post("/api/admin/login", async (req, reply) => {
     const body = req.body as { password?: unknown };
-    const password = typeof body?.password === "string" ? body.password : "";
+    const password = typeof body?.password === "string" ? body.password.trim() : "";
     if (password !== adminPassword()) {
       return reply.code(401).send({ error: "Wrong password." });
     }

@@ -5,11 +5,12 @@ import db from "../db/index.js";
 const DEFAULT_PASSWORD = "changeme";
 
 export function adminPassword(): string {
-  return process.env.ADMIN_PASSWORD || DEFAULT_PASSWORD;
+  const fromEnv = process.env.ADMIN_PASSWORD?.trim();
+  return fromEnv || DEFAULT_PASSWORD;
 }
 
 export function usingDefaultPassword(): boolean {
-  return !process.env.ADMIN_PASSWORD;
+  return !process.env.ADMIN_PASSWORD?.trim();
 }
 
 // Tokens are persisted in the database so they survive server restarts and Pi
