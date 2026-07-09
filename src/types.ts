@@ -13,11 +13,43 @@ export interface Player {
   rating: number;
 }
 
+export type ScoringPreset = "standard" | "first_to_21" | "kids";
+export type FormatType = "round_robin" | "knockout" | "group_playoff";
+export type TournamentStatus = "draft" | "active" | "finished";
+export type TournamentRole = "owner" | "co-admin";
+
 export interface Tournament {
   id: number;
   name: string;
+  share_slug: string | null;
+  event_date: string | null;
+  location: string | null;
+  team_size: number;
+  game_duration_min: number;
+  scoring_preset: ScoringPreset;
+  format_type: FormatType;
+  status: TournamentStatus;
   created_at: string;
   counts: { players: number; teams: number; games: number };
+  role: TournamentRole;
+}
+
+export interface TournamentAdmin {
+  id: number;
+  email: string;
+  display_name: string | null;
+  role: TournamentRole;
+}
+
+export interface TournamentCreateInput {
+  name: string;
+  password: string;
+  eventDate?: string;
+  location?: string;
+  teamSize?: number;
+  gameDurationMin?: number;
+  scoringPreset?: ScoringPreset;
+  formatType?: FormatType;
 }
 
 export interface TeamMember {
@@ -109,6 +141,20 @@ export interface PlayerLeader {
   pointsPerGame: number;
 }
 
+export interface Award {
+  key: string;
+  playerId?: number;
+  playerName?: string;
+  teamName?: string;
+  /** Numeric detail for client-side translation (points, PPG, margin, total). */
+  value?: number;
+  wins?: number;
+  losses?: number;
+  /** @deprecated Legacy English string from older API responses. */
+  label?: string;
+  detail?: string;
+}
+
 export interface StatsResponse {
   standings: TeamStanding[];
   players: PlayerLeader[];
@@ -116,14 +162,24 @@ export interface StatsResponse {
     topScorer: PlayerLeader | null;
     bestTeam: TeamStanding | null;
     highestScoringGame: { label: string | null; teams: string; total: number } | null;
+    clutchWin: { label: string | null; teams: string; margin: number } | null;
     totalGamesPlayed: number;
     totalPointsScored: number;
+    awards: Award[];
   };
+}
+
+export interface PublicTournamentResponse {
+  tournament: Tournament;
+  stats: StatsResponse;
+  games: Game[];
+  nextGame: Game | null;
+  liveGame: Game | null;
 }
 
 export interface SuggestResult {
   teams: { name: string; players: Player[]; rating: number }[];
-  leftover: Player | null;
+  leftover: Player[];
   balanceScore: number;
   averageTeamRating: number;
 }

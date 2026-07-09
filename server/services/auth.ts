@@ -1,10 +1,11 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import db from "../db/index.js";
-import { admins, tournaments } from "../db/repo.js";
+import { admins, tournamentAdmins, tournaments } from "../db/repo.js";
 import type { Admin } from "../types.js";
 
 const SESSION_DAYS = 7;
+const ADMIN_TOKEN_DAYS = 30;
 const SALT_LEN = 16;
 const KEY_LEN = 32;
 
@@ -34,13 +35,23 @@ function sessionExpiresAt(): string {
   return d.toISOString();
 }
 
+function adminTokenExpiresAt(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + ADMIN_TOKEN_DAYS);
+  return d.toISOString();
+}
+
 export function publicAdmin(a: Admin) {
-  return { id: a.id, email: a.email, display_name: a.display_name };
+  return { id: a.id, email: a.email, display_name: a.display_name, status: a.status };
 }
 
 export function issueToken(adminId: number): string {
   const token = randomBytes(24).toString("hex");
-  db.prepare("INSERT INTO admin_tokens (token, admin_id) VALUES (?, ?)").run(token, adminId);
+  db.prepare("INSERT INTO admin_tokens (token, admin_id, expires_at) VALUES (?, ?, ?)").run(
+    token,
+    adminId,
+    adminTokenExpiresAt()
+  );
   return token;
 }
 
@@ -50,10 +61,15 @@ export function getAdminFromToken(token: string | undefined): Admin | undefined 
     .prepare(
       `SELECT a.* FROM admins a
        JOIN admin_tokens t ON t.admin_id = a.id
-       WHERE t.token = ?`
+       WHERE t.token = ? AND a.status = 'approved' AND t.expires_at > datetime('now')`
     )
     .get(token) as Admin | undefined;
   return row;
+}
+
+/** Revoke every session token for an admin (e.g. after a password reset). */
+export function revokeAllTokens(adminId: number): void {
+  db.prepare("DELETE FROM admin_tokens WHERE admin_id = ?").run(adminId);
 }
 
 export function isValidToken(token: string | undefined): boolean {
@@ -122,9 +138,18 @@ function tournamentIdFromParams(req: FastifyRequest): number | null {
   return Number.isFinite(tid) ? tid : null;
 }
 
-export function adminOwnsTournament(adminId: number, tournamentId: number): boolean {
+/** True if this admin is the owner of the tournament. Owner-only actions (delete
+ * the tournament, add/remove other admins) are gated on this, not on
+ * adminManagesTournament. */
+export function isTournamentOwner(adminId: number, tournamentId: number): boolean {
   const t = tournaments.get(tournamentId);
   return !!t && t.admin_id === adminId;
+}
+
+/** True if this admin is the owner OR a co-admin — day-to-day management access
+ * (roster, teams, games, scores, password). */
+export function adminOwnsTournament(adminId: number, tournamentId: number): boolean {
+  return isTournamentOwner(adminId, tournamentId) || tournamentAdmins.isCoAdmin(tournamentId, adminId);
 }
 
 /** Attach authenticated admin to request or send 401. */
@@ -137,7 +162,7 @@ export async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Pr
   req.admin = admin;
 }
 
-/** Admin must own the tournament in :tid. */
+/** Admin must own or co-manage the tournament in :tid. */
 export async function requireAdminTournament(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   await requireAdmin(req, reply);
   if (reply.sent) return;
@@ -153,8 +178,30 @@ export async function requireAdminTournament(req: FastifyRequest, reply: Fastify
     reply.code(404).send({ error: "Tournament not found." });
     return;
   }
-  if (t.admin_id !== req.admin!.id) {
+  if (!adminOwnsTournament(req.admin!.id, tid)) {
     reply.code(403).send({ error: "You do not manage this tournament." });
+  }
+}
+
+/** Admin must be the original owner of the tournament in :tid (delete tournament,
+ * add/remove other admins — co-admins cannot do these). */
+export async function requireTournamentOwner(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  await requireAdmin(req, reply);
+  if (reply.sent) return;
+
+  const tid = tournamentIdFromParams(req);
+  if (tid === null) {
+    reply.code(400).send({ error: "Tournament id required." });
+    return;
+  }
+
+  const t = tournaments.get(tid);
+  if (!t) {
+    reply.code(404).send({ error: "Tournament not found." });
+    return;
+  }
+  if (t.admin_id !== req.admin!.id) {
+    reply.code(403).send({ error: "Only the tournament owner can do this." });
   }
 }
 

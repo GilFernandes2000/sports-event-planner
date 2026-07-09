@@ -3,6 +3,7 @@ import { api, type MatchPayload, type SidePayload } from "../api";
 import { useAdmin } from "../AdminContext";
 import { useTournament } from "../TournamentContext";
 import { useI18n } from "../i18n";
+import { sideDisplayName } from "../gameLabels";
 import NoTournament from "../components/NoTournament";
 import BracketFlow from "../components/BracketFlow";
 import { PlayerName } from "../components/PlayerAvatar";
@@ -233,12 +234,12 @@ function GameCard({
 
       <div className="scoreboard">
         <div className={`side ${winnerA ? "winner" : ""} ${game.teamA.placeholder ? "tbd" : ""}`}>
-          <div className="side-name">{game.teamA.name}</div>
+          <div className="side-name">{sideDisplayName(game, "A", games, t)}</div>
           <div className="side-score">{game.teamA.placeholder ? "-" : isAdmin && resolved ? scoreA : game.score_a ?? "-"}</div>
         </div>
-        <div className="vs">vs</div>
+        <div className="vs">{t("common.vs")}</div>
         <div className={`side ${winnerB ? "winner" : ""} ${game.teamB.placeholder ? "tbd" : ""}`}>
-          <div className="side-name">{game.teamB.name}</div>
+          <div className="side-name">{sideDisplayName(game, "B", games, t)}</div>
           <div className="side-score">{game.teamB.placeholder ? "-" : isAdmin && resolved ? scoreB : game.score_b ?? "-"}</div>
         </div>
       </div>

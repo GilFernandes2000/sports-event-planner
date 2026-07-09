@@ -18,7 +18,7 @@ const TournamentCtx = createContext<TournamentState | null>(null);
 
 export function TournamentProvider({ children }: { children: ReactNode }) {
   const { isAdmin } = useAdmin();
-  const { hasAccess, tournamentId: accessTournamentId, tournamentName, loading: accessLoading } =
+  const { hasAccess, tournamentId: accessTournamentId, tournamentName, tournamentMeta, loading: accessLoading } =
     useTournamentAccess();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [currentId, setCurrentId] = useState<number | null>(() => {
@@ -68,12 +68,22 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
 
   const listed = tournaments.find((t) => t.id === currentId);
   const participantCurrent =
-    hasAccess && accessTournamentId && currentId === accessTournamentId
+    hasAccess && accessTournamentId && currentId === accessTournamentId && tournamentMeta
       ? {
           id: accessTournamentId,
-          name: tournamentName ?? "",
-          created_at: "",
+          name: tournamentName ?? tournamentMeta.name,
+          share_slug: tournamentMeta.share_slug,
+          event_date: tournamentMeta.event_date,
+          location: tournamentMeta.location,
+          team_size: tournamentMeta.team_size,
+          game_duration_min: tournamentMeta.game_duration_min,
+          scoring_preset: tournamentMeta.scoring_preset as Tournament["scoring_preset"],
+          format_type: tournamentMeta.format_type as Tournament["format_type"],
+          status: tournamentMeta.status as Tournament["status"],
+          created_at: tournamentMeta.created_at,
           counts: listed?.counts ?? { players: 0, teams: 0, games: 0 },
+          // Participants aren't admins; role is irrelevant to them.
+          role: "owner" as Tournament["role"],
         }
       : null;
 

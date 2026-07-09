@@ -4,7 +4,7 @@ import { useAdmin } from "../AdminContext";
 import { useTournamentAccess } from "../TournamentAccessContext";
 import { useTournament } from "../TournamentContext";
 import AdminAuthModal from "../components/AdminAuthModal";
-import { useI18n } from "../i18n";
+import { useI18n, LanguageSwitcher } from "../i18n";
 
 export default function Home() {
   const { t } = useI18n();
@@ -21,7 +21,9 @@ export default function Home() {
 
   useEffect(() => {
     const authError = searchParams.get("auth_error");
-    if (authError) setError(t("admin.oauthError"));
+    if (authError) {
+      setError(t("admin.oauthError"));
+    }
   }, [searchParams, t]);
 
   useEffect(() => {
@@ -54,6 +56,9 @@ export default function Home() {
 
   return (
     <div className="app home-page">
+      <div className="home-lang">
+        <LanguageSwitcher />
+      </div>
       <div className="home-card card">
         <div className="brand home-brand">
           <span className="ball" aria-hidden>🏀</span>

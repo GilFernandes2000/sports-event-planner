@@ -5,13 +5,17 @@ export interface AdminProfile {
   id: number;
   email: string;
   display_name: string | null;
+  status: "unverified" | "approved";
 }
 
 interface AdminState {
   isAdmin: boolean;
   admin: AdminProfile | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<"approved" | "verification_required">;
+  verifyEmail: (email: string, code: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (email: string, code: string, password: string) => Promise<void>;
   setSession: (token: string, admin: AdminProfile) => void;
   logout: () => void;
 }
@@ -59,6 +63,22 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   const register = async (email: string, password: string) => {
     const res = await api.register(email, password);
+    if ("verificationRequired" in res) return "verification_required";
+    setSession(res.token, res.admin);
+    return "approved";
+  };
+
+  const verifyEmail = async (email: string, code: string) => {
+    const res = await api.verifyAdminEmail(email, code);
+    setSession(res.token, res.admin);
+  };
+
+  const forgotPassword = async (email: string) => {
+    await api.forgotPassword(email);
+  };
+
+  const resetPassword = async (email: string, code: string, password: string) => {
+    const res = await api.resetPassword(email, code, password);
     setSession(res.token, res.admin);
   };
 
@@ -70,7 +90,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AdminCtx.Provider value={{ isAdmin, admin, login, register, setSession, logout }}>
+    <AdminCtx.Provider
+      value={{ isAdmin, admin, login, register, verifyEmail, forgotPassword, resetPassword, setSession, logout }}
+    >
       {children}
     </AdminCtx.Provider>
   );

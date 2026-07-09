@@ -94,8 +94,17 @@ export function runMigrations(db: DB): void {
         password_hash TEXT,
         google_id TEXT UNIQUE,
         display_name TEXT,
+        status TEXT NOT NULL DEFAULT 'approved',
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       )`);
+  }
+
+  if (tableExists(db, "admins") && !hasColumn(db, "admins", "status")) {
+    db.exec("ALTER TABLE admins ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'");
+  }
+
+  if (tableExists(db, "admins") && hasColumn(db, "admins", "status")) {
+    db.exec("UPDATE admins SET status = 'unverified' WHERE status = 'pending'");
   }
 
   if (tableExists(db, "tournaments") && !hasColumn(db, "tournaments", "admin_id")) {
@@ -124,6 +133,88 @@ export function runMigrations(db: DB): void {
     // Legacy tokens have no admin — clear them so everyone re-authenticates.
     db.exec("DELETE FROM admin_tokens");
     db.exec("ALTER TABLE admin_tokens ADD COLUMN admin_id INTEGER REFERENCES admins(id) ON DELETE CASCADE");
+  }
+
+  if (tableExists(db, "admin_tokens") && !hasColumn(db, "admin_tokens", "expires_at")) {
+    // SQLite only allows constant defaults in ALTER TABLE ADD COLUMN, so add it
+    // nullable first, then backfill existing sessions so this migration doesn't
+    // log anyone out.
+    db.exec("ALTER TABLE admin_tokens ADD COLUMN expires_at TEXT");
+    db.exec("UPDATE admin_tokens SET expires_at = datetime('now', '+30 days') WHERE expires_at IS NULL");
+  }
+
+  if (!tableExists(db, "admin_email_verifications")) {
+    db.exec(`
+      CREATE TABLE admin_email_verifications (
+        admin_id INTEGER PRIMARY KEY REFERENCES admins(id) ON DELETE CASCADE,
+        code_hash TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`);
+  }
+
+  if (!tableExists(db, "admin_password_resets")) {
+    db.exec(`
+      CREATE TABLE admin_password_resets (
+        admin_id INTEGER PRIMARY KEY REFERENCES admins(id) ON DELETE CASCADE,
+        code_hash TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`);
+  }
+
+  if (!tableExists(db, "tournament_admins")) {
+    db.exec(`
+      CREATE TABLE tournament_admins (
+        tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+        admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (tournament_id, admin_id)
+      )`);
+  }
+
+  // Tournament settings + public share slug.
+  if (tableExists(db, "tournaments")) {
+    if (!hasColumn(db, "tournaments", "share_slug")) {
+      db.exec("ALTER TABLE tournaments ADD COLUMN share_slug TEXT");
+    }
+    if (!hasColumn(db, "tournaments", "event_date")) {
+      db.exec("ALTER TABLE tournaments ADD COLUMN event_date TEXT");
+    }
+    if (!hasColumn(db, "tournaments", "location")) {
+      db.exec("ALTER TABLE tournaments ADD COLUMN location TEXT");
+    }
+    if (!hasColumn(db, "tournaments", "team_size")) {
+      db.exec("ALTER TABLE tournaments ADD COLUMN team_size INTEGER NOT NULL DEFAULT 2");
+    }
+    if (!hasColumn(db, "tournaments", "game_duration_min")) {
+      db.exec("ALTER TABLE tournaments ADD COLUMN game_duration_min INTEGER NOT NULL DEFAULT 10");
+    }
+    if (!hasColumn(db, "tournaments", "scoring_preset")) {
+      db.exec("ALTER TABLE tournaments ADD COLUMN scoring_preset TEXT NOT NULL DEFAULT 'standard'");
+    }
+    if (!hasColumn(db, "tournaments", "format_type")) {
+      db.exec("ALTER TABLE tournaments ADD COLUMN format_type TEXT NOT NULL DEFAULT 'round_robin'");
+    }
+    if (!hasColumn(db, "tournaments", "status")) {
+      db.exec("ALTER TABLE tournaments ADD COLUMN status TEXT NOT NULL DEFAULT 'active'");
+    }
+    const missingSlug = db
+      .prepare("SELECT id, name FROM tournaments WHERE share_slug IS NULL OR share_slug = ''")
+      .all() as { id: number; name: string }[];
+    const setSlug = db.prepare("UPDATE tournaments SET share_slug = ? WHERE id = ?");
+    for (const row of missingSlug) {
+      const base =
+        row.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 24) || "cup";
+      setSlug.run(`${base}-${row.id}`, row.id);
+    }
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_tournaments_share_slug ON tournaments(share_slug)");
   }
 
   // Seed a default tournament from any pre-tournament data so nothing is lost.

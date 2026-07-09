@@ -1,5 +1,17 @@
 import db from "./index.js";
-import type { Player, Team, Tournament, Game, PlayerGameStat, SourceResult, Admin } from "../types.js";
+import type {
+  Player,
+  Team,
+  Tournament,
+  Game,
+  PlayerGameStat,
+  SourceResult,
+  Admin,
+  TournamentInput,
+  TournamentUpdate,
+  TournamentWithRole,
+  TournamentAdminSummary,
+} from "../types.js";
 import { deletePlayerPhoto } from "../services/player-photos.js";
 import type { BracketMatchSpec, BracketSide } from "../services/schedule.js";
 
@@ -65,6 +77,12 @@ export const admins = {
   get(id: number): Admin | undefined {
     return db.prepare("SELECT * FROM admins WHERE id = ?").get(id) as Admin | undefined;
   },
+  count(): number {
+    return (db.prepare("SELECT COUNT(*) AS c FROM admins").get() as { c: number }).c;
+  },
+  countApproved(): number {
+    return (db.prepare("SELECT COUNT(*) AS c FROM admins WHERE status = 'approved'").get() as { c: number }).c;
+  },
   findByEmail(email: string): Admin | undefined {
     return db
       .prepare("SELECT * FROM admins WHERE email = ? COLLATE NOCASE")
@@ -78,19 +96,25 @@ export const admins = {
     passwordHash?: string | null;
     googleId?: string | null;
     displayName?: string | null;
+    status?: "unverified" | "approved";
   }): Admin {
     const info = db
       .prepare(
-        `INSERT INTO admins (email, password_hash, google_id, display_name)
-         VALUES (?, ?, ?, ?)`
+        `INSERT INTO admins (email, password_hash, google_id, display_name, status)
+         VALUES (?, ?, ?, ?, ?)`
       )
       .run(
         data.email.trim().toLowerCase(),
         data.passwordHash ?? null,
         data.googleId ?? null,
-        data.displayName ?? null
+        data.displayName ?? null,
+        data.status ?? "approved"
       );
     return this.get(Number(info.lastInsertRowid))!;
+  },
+  markApproved(id: number): Admin | undefined {
+    db.prepare("UPDATE admins SET status = 'approved' WHERE id = ?").run(id);
+    return this.get(id);
   },
   linkGoogle(id: number, googleId: string, displayName: string | null): void {
     db.prepare("UPDATE admins SET google_id = ?, display_name = COALESCE(?, display_name) WHERE id = ?").run(
@@ -104,16 +128,152 @@ export const admins = {
   },
 };
 
+/* ---------------------- Admin email verification ---------------------- */
+
+export interface AdminEmailVerification {
+  admin_id: number;
+  code_hash: string;
+  expires_at: string;
+  attempts: number;
+  created_at: string;
+}
+
+export const adminEmailVerifications = {
+  get(adminId: number): AdminEmailVerification | undefined {
+    return db
+      .prepare("SELECT * FROM admin_email_verifications WHERE admin_id = ?")
+      .get(adminId) as AdminEmailVerification | undefined;
+  },
+  upsert(adminId: number, codeHash: string, expiresAt: string): void {
+    db.prepare(
+      `INSERT INTO admin_email_verifications (admin_id, code_hash, expires_at, attempts)
+       VALUES (?, ?, ?, 0)
+       ON CONFLICT(admin_id) DO UPDATE SET
+         code_hash = excluded.code_hash,
+         expires_at = excluded.expires_at,
+         attempts = 0,
+         created_at = datetime('now')`
+    ).run(adminId, codeHash, expiresAt);
+  },
+  incrementAttempts(adminId: number): void {
+    db.prepare("UPDATE admin_email_verifications SET attempts = attempts + 1 WHERE admin_id = ?").run(adminId);
+  },
+  remove(adminId: number): void {
+    db.prepare("DELETE FROM admin_email_verifications WHERE admin_id = ?").run(adminId);
+  },
+};
+
+/* ----------------------- Admin password resets ----------------------- */
+
+export interface AdminPasswordReset {
+  admin_id: number;
+  code_hash: string;
+  expires_at: string;
+  attempts: number;
+  created_at: string;
+}
+
+export const adminPasswordResets = {
+  get(adminId: number): AdminPasswordReset | undefined {
+    return db
+      .prepare("SELECT * FROM admin_password_resets WHERE admin_id = ?")
+      .get(adminId) as AdminPasswordReset | undefined;
+  },
+  upsert(adminId: number, codeHash: string, expiresAt: string): void {
+    db.prepare(
+      `INSERT INTO admin_password_resets (admin_id, code_hash, expires_at, attempts)
+       VALUES (?, ?, ?, 0)
+       ON CONFLICT(admin_id) DO UPDATE SET
+         code_hash = excluded.code_hash,
+         expires_at = excluded.expires_at,
+         attempts = 0,
+         created_at = datetime('now')`
+    ).run(adminId, codeHash, expiresAt);
+  },
+  incrementAttempts(adminId: number): void {
+    db.prepare("UPDATE admin_password_resets SET attempts = attempts + 1 WHERE admin_id = ?").run(adminId);
+  },
+  remove(adminId: number): void {
+    db.prepare("DELETE FROM admin_password_resets WHERE admin_id = ?").run(adminId);
+  },
+};
+
+/* ------------------------- Tournament admins ------------------------- */
+
+export const tournamentAdmins = {
+  add(tournamentId: number, adminId: number): void {
+    db.prepare(
+      "INSERT OR IGNORE INTO tournament_admins (tournament_id, admin_id) VALUES (?, ?)"
+    ).run(tournamentId, adminId);
+  },
+  remove(tournamentId: number, adminId: number): void {
+    db.prepare("DELETE FROM tournament_admins WHERE tournament_id = ? AND admin_id = ?").run(
+      tournamentId,
+      adminId
+    );
+  },
+  isCoAdmin(tournamentId: number, adminId: number): boolean {
+    return !!db
+      .prepare("SELECT 1 FROM tournament_admins WHERE tournament_id = ? AND admin_id = ?")
+      .get(tournamentId, adminId);
+  },
+  listByTournament(tournamentId: number): TournamentAdminSummary[] {
+    const owner = db
+      .prepare(
+        `SELECT a.id, a.email, a.display_name FROM admins a
+         JOIN tournaments t ON t.admin_id = a.id
+         WHERE t.id = ?`
+      )
+      .get(tournamentId) as { id: number; email: string; display_name: string | null } | undefined;
+    const coAdmins = db
+      .prepare(
+        `SELECT a.id, a.email, a.display_name FROM admins a
+         JOIN tournament_admins ta ON ta.admin_id = a.id
+         WHERE ta.tournament_id = ?
+         ORDER BY a.email COLLATE NOCASE`
+      )
+      .all(tournamentId) as { id: number; email: string; display_name: string | null }[];
+    const result: TournamentAdminSummary[] = [];
+    if (owner) result.push({ ...owner, role: "owner" });
+    for (const a of coAdmins) result.push({ ...a, role: "co-admin" });
+    return result;
+  },
+  tournamentIdsForAdmin(adminId: number): number[] {
+    return (
+      db
+        .prepare("SELECT tournament_id FROM tournament_admins WHERE admin_id = ?")
+        .all(adminId) as { tournament_id: number }[]
+    ).map((r) => r.tournament_id);
+  },
+};
+
 /* --------------------------- Tournaments --------------------------- */
+
+function slugify(name: string, id: number): string {
+  const base =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 24) || "cup";
+  return `${base}-${id}`;
+}
 
 export const tournaments = {
   all(): Tournament[] {
     return db.prepare("SELECT * FROM tournaments ORDER BY id").all() as Tournament[];
   },
-  byAdmin(adminId: number): Tournament[] {
+  byAdmin(adminId: number): TournamentWithRole[] {
     return db
-      .prepare("SELECT * FROM tournaments WHERE admin_id = ? ORDER BY id")
-      .all(adminId) as Tournament[];
+      .prepare(
+        `SELECT t.*, 'owner' AS role FROM tournaments t WHERE t.admin_id = ?
+         UNION ALL
+         SELECT t.*, 'co-admin' AS role FROM tournaments t
+         JOIN tournament_admins ta ON ta.tournament_id = t.id
+         WHERE ta.admin_id = ?
+         ORDER BY id`
+      )
+      .all(adminId, adminId) as TournamentWithRole[];
   },
   get(id: number): Tournament | undefined {
     return db.prepare("SELECT * FROM tournaments WHERE id = ?").get(id) as Tournament | undefined;
@@ -125,11 +285,55 @@ export const tournaments = {
       .prepare("SELECT * FROM tournaments WHERE name = ? COLLATE NOCASE")
       .get(trimmed) as Tournament | undefined;
   },
-  create(name: string, passwordHash: string, adminId: number): Tournament {
+  findBySlug(slug: string): Tournament | undefined {
+    const trimmed = slug.trim();
+    if (!trimmed) return undefined;
+    return db.prepare("SELECT * FROM tournaments WHERE share_slug = ?").get(trimmed) as Tournament | undefined;
+  },
+  create(input: TournamentInput): Tournament {
     const info = db
-      .prepare("INSERT INTO tournaments (name, password_hash, admin_id) VALUES (?, ?, ?)")
-      .run(name, passwordHash, adminId);
-    return this.get(Number(info.lastInsertRowid))!;
+      .prepare(
+        `INSERT INTO tournaments
+           (name, password_hash, admin_id, event_date, location, team_size, game_duration_min, scoring_preset, format_type, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`
+      )
+      .run(
+        input.name,
+        input.passwordHash,
+        input.adminId,
+        input.eventDate ?? null,
+        input.location ?? null,
+        input.teamSize ?? 2,
+        input.gameDurationMin ?? 10,
+        input.scoringPreset ?? "standard",
+        input.formatType ?? "round_robin"
+      );
+    const id = Number(info.lastInsertRowid);
+    const shareSlug = slugify(input.name, id);
+    db.prepare("UPDATE tournaments SET share_slug = ? WHERE id = ?").run(shareSlug, id);
+    return this.get(id)!;
+  },
+  update(id: number, patch: TournamentUpdate): Tournament | undefined {
+    const cur = this.get(id);
+    if (!cur) return undefined;
+    const name = patch.name?.trim().slice(0, 60) ?? cur.name;
+    db.prepare(
+      `UPDATE tournaments SET
+         name = ?, event_date = ?, location = ?, team_size = ?, game_duration_min = ?,
+         scoring_preset = ?, format_type = ?, status = ?
+       WHERE id = ?`
+    ).run(
+      name,
+      patch.eventDate !== undefined ? patch.eventDate : cur.event_date,
+      patch.location !== undefined ? patch.location : cur.location,
+      patch.teamSize ?? cur.team_size,
+      patch.gameDurationMin ?? cur.game_duration_min,
+      patch.scoringPreset ?? cur.scoring_preset,
+      patch.formatType ?? cur.format_type,
+      patch.status ?? cur.status,
+      id
+    );
+    return this.get(id);
   },
   setPassword(id: number, passwordHash: string): void {
     db.prepare("UPDATE tournaments SET password_hash = ? WHERE id = ?").run(passwordHash, id);

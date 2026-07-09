@@ -14,7 +14,7 @@ interface LocalTeam {
 
 export default function Teams() {
   const { isAdmin } = useAdmin();
-  const { currentId } = useTournament();
+  const { currentId, current } = useTournament();
   const { t } = useI18n();
   const [roster, setRoster] = useState<Player[]>([]);
   const [teams, setTeams] = useState<LocalTeam[]>([]);
@@ -27,6 +27,7 @@ export default function Teams() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
+  const minPlayers = (current?.team_size ?? 2) * 2;
   const playerMap = useMemo(() => new Map(roster.map((p) => [p.id, p] as const)), [roster]);
 
   const load = async () => {
@@ -215,7 +216,9 @@ export default function Teams() {
 
       {isAdmin && teams.length === 0 && (
         <div className="empty">
-          {roster.length < 4 ? t("teams.needPlayers", { n: roster.length }) : t("teams.hitGenerate")}
+          {roster.length < minPlayers
+            ? t("teams.needPlayers", { min: minPlayers, n: roster.length })
+            : t("teams.hitGenerate")}
         </div>
       )}
 

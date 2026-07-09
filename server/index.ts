@@ -14,6 +14,7 @@ import gameRoutes from "./routes/games.js";
 import statsRoutes from "./routes/stats.js";
 import adminRoutes from "./routes/admin.js";
 import accessRoutes from "./routes/access.js";
+import publicRoutes from "./routes/public.js";
 import { googleOAuthEnabled } from "./services/google-auth.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -28,6 +29,7 @@ await app.register(rateLimit, {
 });
 
 await app.register(accessRoutes);
+await app.register(publicRoutes);
 await app.register(adminRoutes);
 await app.register(playerRoutes);
 await app.register(tournamentRoutes);

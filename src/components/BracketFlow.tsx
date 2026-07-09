@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Game } from "../types";
 import { useI18n } from "../i18n";
+import { sideDisplayName } from "../gameLabels";
 
 interface Connector {
   id: string;
@@ -168,11 +169,11 @@ export default function BracketFlow({
                     {badge && <span className="bnode-stage">{badge}</span>}
                   </div>
                   <div className={`brow ${winnerA ? "win" : ""} ${g.teamA.placeholder ? "tbd" : ""}`}>
-                    <span className="bteam">{g.teamA.name}</span>
+                    <span className="bteam">{sideDisplayName(g, "A", games, t)}</span>
                     <span className="bscore">{g.teamA.placeholder ? "" : g.score_a ?? ""}</span>
                   </div>
                   <div className={`brow ${winnerB ? "win" : ""} ${g.teamB.placeholder ? "tbd" : ""}`}>
-                    <span className="bteam">{g.teamB.name}</span>
+                    <span className="bteam">{sideDisplayName(g, "B", games, t)}</span>
                     <span className="bscore">{g.teamB.placeholder ? "" : g.score_b ?? ""}</span>
                   </div>
                 </button>
