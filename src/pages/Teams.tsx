@@ -5,6 +5,7 @@ import { useTournament } from "../TournamentContext";
 import { useI18n } from "../i18n";
 import NoTournament from "../components/NoTournament";
 import { PlayerName } from "../components/PlayerAvatar";
+import { useConfirm } from "../components/ConfirmDialog";
 import type { Player } from "../types";
 
 interface LocalTeam {
@@ -16,6 +17,7 @@ export default function Teams() {
   const { isAdmin } = useAdmin();
   const { currentId, current } = useTournament();
   const { t } = useI18n();
+  const confirm = useConfirm();
   const [roster, setRoster] = useState<Player[]>([]);
   const [teams, setTeams] = useState<LocalTeam[]>([]);
   const [bench, setBench] = useState<number[]>([]);
@@ -142,7 +144,7 @@ export default function Teams() {
 
   const unlock = async () => {
     if (!currentId) return;
-    if (!confirm(t("teams.confirmUnlock"))) return;
+    if (!(await confirm({ message: t("teams.confirmUnlock"), danger: true }))) return;
     setBusy(true);
     setError(null);
     try {

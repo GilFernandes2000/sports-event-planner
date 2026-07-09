@@ -6,19 +6,22 @@ import { AdminProvider } from "./AdminContext";
 import { TournamentAccessProvider } from "./TournamentAccessContext";
 import { TournamentProvider } from "./TournamentContext";
 import { I18nProvider } from "./i18n";
+import { ConfirmProvider } from "./components/ConfirmDialog";
 import "./styles.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
       <I18nProvider>
-        <AdminProvider>
-          <TournamentAccessProvider>
-            <TournamentProvider>
-              <App />
-            </TournamentProvider>
-          </TournamentAccessProvider>
-        </AdminProvider>
+        <ConfirmProvider>
+          <AdminProvider>
+            <TournamentAccessProvider>
+              <TournamentProvider>
+                <App />
+              </TournamentProvider>
+            </TournamentAccessProvider>
+          </AdminProvider>
+        </ConfirmProvider>
       </I18nProvider>
     </BrowserRouter>
   </React.StrictMode>

@@ -133,8 +133,10 @@ function AppShell() {
           <NavLink to="/teams">{t("nav.teams")}</NavLink>
           <NavLink to="/roster">{t("nav.roster")}</NavLink>
           <NavLink to="/enroll">{t("nav.enroll")}</NavLink>
-          <NavLink to="/players">{t("nav.players")}</NavLink>
-          <NavLink to="/tournaments">{t("nav.events")}</NavLink>
+          {/* Directory and event management are organiser tools; keep the
+              participant nav short and focused on game day. */}
+          {isAdmin && <NavLink to="/players">{t("nav.players")}</NavLink>}
+          {isAdmin && <NavLink to="/tournaments">{t("nav.events")}</NavLink>}
         </nav>
       </div>
 

@@ -1476,3 +1476,148 @@ span.tournament-pick {
   text-align: center;
   font-size: 18px;
 }
+
+/* ---- Confirm dialog ---- */
+.confirm-modal {
+  max-width: 360px;
+  text-align: center;
+}
+.confirm-message {
+  margin: 8px 0 18px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.confirm-actions .btn {
+  min-height: 48px;
+  font-size: 15px;
+}
+.confirm-actions .btn-danger {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+}
+
+/* ---- Score steppers ---- */
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.stepper input {
+  width: 58px;
+  margin: 0;
+  text-align: center;
+}
+.step-btn {
+  appearance: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card-2);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.step-btn:active {
+  transform: scale(0.95);
+}
+.step-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ---- Live game badge ---- */
+.status.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+.status.live::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  animation: live-pulse 1.4s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status.live::before {
+    animation: none;
+  }
+}
+
+/* ---- Medal ranks ---- */
+.rank-1 {
+  background: linear-gradient(135deg, #fde047, #f59e0b);
+  color: #442b00;
+}
+.rank-2 {
+  background: linear-gradient(135deg, #e5e7eb, #9ca3af);
+  color: #1f2937;
+}
+.rank-3 {
+  background: linear-gradient(135deg, #f0a36b, #b45309);
+  color: #3b1d05;
+}
+
+/* ---- Champion banner ---- */
+.champion-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(253, 224, 71, 0.45);
+  background: linear-gradient(135deg, rgba(253, 224, 71, 0.16), rgba(249, 115, 22, 0.12));
+  color: #fde047;
+  font-weight: 800;
+  font-size: 16px;
+}
+.champion-trophy {
+  font-size: 22px;
+}
+
+/* ---- Bigger touch targets on phones/tablets ---- */
+@media (pointer: coarse) {
+  .btn {
+    min-height: 44px;
+  }
+  .btn.sm {
+    min-height: 38px;
+  }
+  input:not([type="checkbox"]):not([type="range"]),
+  select {
+    min-height: 44px;
+  }
+  .chip {
+    min-height: 40px;
+  }
+  .tabs a {
+    padding: 11px 12px;
+  }
+}

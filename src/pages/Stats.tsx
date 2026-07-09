@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAdmin } from "../AdminContext";
@@ -8,6 +8,7 @@ import { awardDetail, awardLabel } from "../awardLabels";
 import { sideDisplayName } from "../gameLabels";
 import NoTournament from "../components/NoTournament";
 import { PlayerName } from "../components/PlayerAvatar";
+import { usePolling } from "../usePolling";
 import type { Game, StatsResponse, Tournament } from "../types";
 
 const POLL_MS = 10_000;
@@ -147,36 +148,28 @@ export default function Stats() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const load = useCallback(() => {
+    if (!currentId) return;
+    Promise.all([api.getStats(currentId), api.getGames(currentId)])
+      .then(([s, g]) => {
+        setStats(s);
+        setGames(g);
+        setError(null);
+      })
+      .catch((err) => setError((err as Error).message))
+      .finally(() => setLoading(false));
+  }, [currentId]);
+
   useEffect(() => {
     if (!currentId) {
       setLoading(false);
       return;
     }
-
-    let cancelled = false;
-    const load = () =>
-      Promise.all([api.getStats(currentId), api.getGames(currentId)])
-        .then(([s, g]) => {
-          if (!cancelled) {
-            setStats(s);
-            setGames(g);
-            setError(null);
-          }
-        })
-        .catch((err) => {
-          if (!cancelled) setError((err as Error).message);
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-
+    setLoading(true);
     load();
-    const poll = setInterval(load, POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(poll);
-    };
-  }, [currentId]);
+  }, [currentId, load]);
+
+  usePolling(load, POLL_MS, currentId !== null);
 
   if (!currentId) return <div className="page"><NoTournament /></div>;
   if (loading && !stats) return <div className="page">{t("stats.loading")}</div>;
@@ -185,12 +178,20 @@ export default function Stats() {
 
   const { standings, players, highlights } = stats;
   const hasGames = highlights.totalGamesPlayed > 0;
+  const tournamentDone = games.length > 0 && games.every((g) => g.status === "final");
+  const champion = tournamentDone && standings.length > 0 ? standings[0] : null;
   const displayUrl =
     current?.share_slug ? `${window.location.origin}/display/${current.share_slug}` : null;
 
   return (
     <div className="page">
       <h1>{current?.name ?? t("nav.standings")}</h1>
+      {champion && (
+        <div className="champion-banner">
+          <span className="champion-trophy" aria-hidden>🏆</span>
+          {t("stats.champion", { name: champion.name })}
+        </div>
+      )}
       {displayUrl && (
         <p className="muted sm">
           {t("stats.publicView")}{" "}
@@ -287,7 +288,7 @@ export default function Stats() {
                 {standings.map((s, i) => (
                   <tr key={s.teamId}>
                     <td className="left">
-                      <span className="rank">{i + 1}</span>
+                      <span className={`rank${i < 3 ? ` rank-${i + 1}` : ""}`}>{i + 1}</span>
                       <div>
                         <div className="team-name-cell">{s.name}</div>
                         <div className="muted tiny member-names">
@@ -337,7 +338,7 @@ export default function Stats() {
                 {players.map((p, i) => (
                   <tr key={p.playerId}>
                     <td className="left">
-                      <span className="rank">{i + 1}</span>
+                      <span className={`rank${i < 3 ? ` rank-${i + 1}` : ""}`}>{i + 1}</span>
                       <div>
                         <PlayerName id={p.playerId} name={p.name} hasPhoto={p.has_photo} />
                         <div className="muted tiny">{p.teamName ?? ""}</div>

@@ -4,6 +4,7 @@ import { useAdmin } from "../AdminContext";
 import { useI18n } from "../i18n";
 import PhotoField from "../components/PhotoField";
 import { PlayerName } from "../components/PlayerAvatar";
+import { useConfirm } from "../components/ConfirmDialog";
 import type { Player } from "../types";
 
 type FormState = {
@@ -167,6 +168,7 @@ function PlayerModal({
 export default function Players() {
   const { isAdmin } = useAdmin();
   const { t } = useI18n();
+  const confirm = useConfirm();
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Player | null>(null);
@@ -188,7 +190,12 @@ export default function Players() {
   }, []);
 
   const remove = async (p: Player) => {
-    if (!confirm(t("players.confirmRemove", { name: p.name }))) return;
+    const ok = await confirm({
+      message: t("players.confirmRemove", { name: p.name }),
+      confirmLabel: t("common.remove"),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.deletePlayer(p.id);
       load();

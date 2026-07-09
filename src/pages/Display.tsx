@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
 import { useI18n, LanguageSwitcher } from "../i18n";
 import { awardDetail, awardLabel } from "../awardLabels";
 import { sideDisplayName } from "../gameLabels";
+import { usePolling } from "../usePolling";
 import type { PublicTournamentResponse } from "../types";
 
 const POLL_MS = 10_000;
@@ -32,30 +33,22 @@ export default function Display() {
     return () => clearInterval(tick);
   }, []);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!slug) return;
-    let cancelled = false;
-
-    const load = () =>
-      api
-        .getPublicTournament(slug)
-        .then((d) => {
-          if (!cancelled) {
-            setData(d);
-            setError(null);
-          }
-        })
-        .catch((err) => {
-          if (!cancelled) setError((err as Error).message);
-        });
-
-    load();
-    const poll = setInterval(load, POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(poll);
-    };
+    api
+      .getPublicTournament(slug)
+      .then((d) => {
+        setData(d);
+        setError(null);
+      })
+      .catch((err) => setError((err as Error).message));
   }, [slug]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  usePolling(load, POLL_MS, !!slug);
 
   if (error) {
     return (
@@ -131,7 +124,9 @@ export default function Display() {
               <tbody>
                 {standings.slice(0, 8).map((s, i) => (
                   <tr key={s.teamId}>
-                    <td>{i + 1}</td>
+                    <td>
+                      <span className={`rank${i < 3 ? ` rank-${i + 1}` : ""}`}>{i + 1}</span>
+                    </td>
                     <td className="left">{s.name}</td>
                     <td>{s.wins}</td>
                     <td>{s.losses}</td>

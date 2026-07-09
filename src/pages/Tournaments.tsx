@@ -3,6 +3,7 @@ import { api } from "../api";
 import { useAdmin } from "../AdminContext";
 import { useTournament } from "../TournamentContext";
 import { useI18n } from "../i18n";
+import { useConfirm } from "../components/ConfirmDialog";
 import type { FormatType, ScoringPreset, TournamentAdmin, TournamentCreateInput } from "../types";
 
 function shareUrl(slug: string | null): string | null {
@@ -53,6 +54,7 @@ function ShareBlock({ slug }: { slug: string | null }) {
 
 function AdminsBlock({ tournamentId, isOwner }: { tournamentId: number; isOwner: boolean }) {
   const { t } = useI18n();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [admins, setAdmins] = useState<TournamentAdmin[] | null>(null);
   const [email, setEmail] = useState("");
@@ -90,7 +92,12 @@ function AdminsBlock({ tournamentId, isOwner }: { tournamentId: number; isOwner:
   };
 
   const remove = async (admin: TournamentAdmin) => {
-    if (!confirm(t("tournaments.admins.confirmRemove", { email: admin.email }))) return;
+    const ok = await confirm({
+      message: t("tournaments.admins.confirmRemove", { email: admin.email }),
+      confirmLabel: t("common.remove"),
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {
@@ -169,6 +176,7 @@ export default function Tournaments() {
   const { isAdmin } = useAdmin();
   const { tournaments, currentId, select, refresh, loading } = useTournament();
   const { t } = useI18n();
+  const confirm = useConfirm();
   const [form, setForm] = useState<TournamentCreateInput>({ ...DEFAULT_FORM });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -223,7 +231,12 @@ export default function Tournaments() {
   };
 
   const remove = async (id: number, tName: string) => {
-    if (!confirm(t("tournaments.confirmDelete", { name: tName }))) return;
+    const ok = await confirm({
+      message: t("tournaments.confirmDelete", { name: tName }),
+      confirmLabel: t("common.delete"),
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {

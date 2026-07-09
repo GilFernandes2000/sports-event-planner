@@ -7,7 +7,11 @@ import { sideDisplayName } from "../gameLabels";
 import NoTournament from "../components/NoTournament";
 import BracketFlow from "../components/BracketFlow";
 import { PlayerName } from "../components/PlayerAvatar";
+import { useConfirm } from "../components/ConfirmDialog";
+import { usePolling } from "../usePolling";
 import type { Game, Team } from "../types";
+
+const POLL_MS = 10_000;
 
 /* --------------------------- Match definition form --------------------------- */
 
@@ -156,14 +160,37 @@ function GameCard({
 }) {
   const { isAdmin } = useAdmin();
   const { t } = useI18n();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
-  const init: Record<number, string> = {};
-  for (const m of [...game.teamA.members, ...game.teamB.members]) init[m.id] = m.points ? String(m.points) : "0";
-  const [points, setPoints] = useState<Record<number, string>>(init);
+  const [points, setPoints] = useState<Record<number, string>>(() => {
+    const init: Record<number, string> = {};
+    for (const m of [...game.teamA.members, ...game.teamB.members]) init[m.id] = m.points ? String(m.points) : "0";
+    return init;
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Live polling can resolve placeholder sides into real teams; make sure
+  // newly appearing players get an entry without clobbering values being typed.
+  useEffect(() => {
+    setPoints((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const m of [...game.teamA.members, ...game.teamB.members]) {
+        if (next[m.id] === undefined) {
+          next[m.id] = m.points ? String(m.points) : "0";
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [game]);
+
   const resolved = game.teamA.id !== null && game.teamB.id !== null;
+  const live = game.status !== "final" && (game.score_a !== null || game.score_b !== null);
+
+  const bump = (id: number, delta: number) =>
+    setPoints((prev) => ({ ...prev, [id]: String(Math.max(0, (Number(prev[id]) || 0) + delta)) }));
 
   const sum = (ids: number[]) => ids.reduce((s, id) => s + (Number(points[id]) || 0), 0);
   const scoreA = sum(game.teamA.members.map((m) => m.id));
@@ -185,7 +212,12 @@ function GameCard({
   };
 
   const del = async () => {
-    if (!confirm(t("game.confirmDelete", { label: game.label ?? t("game.thisMatch") }))) return;
+    const ok = await confirm({
+      message: t("game.confirmDelete", { label: game.label ?? t("game.thisMatch") }),
+      confirmLabel: t("common.delete"),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.deleteMatch(game.id);
       onChanged();
@@ -229,7 +261,9 @@ function GameCard({
     <div className="card game-card">
       <div className="game-head">
         <span className="game-label">{game.label ?? t("game.gameNum", { id: game.id })}</span>
-        <span className={`status ${game.status}`}>{game.status === "final" ? t("game.final") : t("game.scheduled")}</span>
+        <span className={`status ${live ? "live" : game.status}`}>
+          {game.status === "final" ? t("game.final") : live ? t("game.live") : t("game.scheduled")}
+        </span>
       </div>
 
       <div className="scoreboard">
@@ -252,16 +286,37 @@ function GameCard({
             <div className="entry-team" key={s.id}>
               <div className="muted entry-team-name">{s.name}</div>
               {s.members.map((m) => (
-                <label className="entry-row" key={m.id}>
+                <div className="entry-row" key={m.id}>
                   <PlayerName id={m.id} name={m.name} hasPhoto={m.has_photo} size="sm" />
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    value={points[m.id]}
-                    onChange={(e) => setPoints({ ...points, [m.id]: e.target.value })}
-                  />
-                </label>
+                  <span className="stepper">
+                    <button
+                      type="button"
+                      className="step-btn"
+                      onClick={() => bump(m.id, -1)}
+                      disabled={busy || (Number(points[m.id]) || 0) === 0}
+                      aria-label={`${m.name} -1`}
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      aria-label={m.name}
+                      value={points[m.id] ?? "0"}
+                      onChange={(e) => setPoints({ ...points, [m.id]: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      className="step-btn"
+                      onClick={() => bump(m.id, 1)}
+                      disabled={busy}
+                      aria-label={`${m.name} +1`}
+                    >
+                      +
+                    </button>
+                  </span>
+                </div>
               ))}
             </div>
           ))}
@@ -313,6 +368,7 @@ export default function Dashboard() {
   const { isAdmin } = useAdmin();
   const { currentId } = useTournament();
   const { t } = useI18n();
+  const confirm = useConfirm();
   const [games, setGames] = useState<Game[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [locked, setLocked] = useState(false);
@@ -346,9 +402,12 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId]);
 
+  // Keep scores fresh for everyone watching without switching tabs.
+  usePolling(load, POLL_MS, currentId !== null);
+
   const roundRobin = async () => {
     if (!currentId) return;
-    if (games.length > 0 && !confirm(t("dash.confirmReplaceRR"))) return;
+    if (games.length > 0 && !(await confirm({ message: t("dash.confirmReplaceRR"), danger: true }))) return;
     setBusy(true);
     setError(null);
     setInfo(null);
@@ -365,7 +424,7 @@ export default function Dashboard() {
 
   const knockout = async () => {
     if (!currentId) return;
-    if (games.length > 0 && !confirm(t("dash.confirmReplaceKnockout"))) return;
+    if (games.length > 0 && !(await confirm({ message: t("dash.confirmReplaceKnockout"), danger: true }))) return;
     setBusy(true);
     setError(null);
     setInfo(null);

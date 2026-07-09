@@ -5,12 +5,14 @@ import { useTournament } from "../TournamentContext";
 import { useI18n } from "../i18n";
 import NoTournament from "../components/NoTournament";
 import { PlayerName } from "../components/PlayerAvatar";
+import { useConfirm } from "../components/ConfirmDialog";
 import type { Player } from "../types";
 
 export default function Roster() {
   const { isAdmin } = useAdmin();
   const { currentId, current, refresh } = useTournament();
   const { t } = useI18n();
+  const confirm = useConfirm();
   const [roster, setRoster] = useState<Player[]>([]);
   const [directory, setDirectory] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +73,12 @@ export default function Roster() {
   };
 
   const remove = async (p: Player) => {
-    if (!confirm(t("roster.confirmRemove", { name: p.name, tournament: current?.name ?? t("roster.thisTournament") }))) return;
+    const ok = await confirm({
+      message: t("roster.confirmRemove", { name: p.name, tournament: current?.name ?? t("roster.thisTournament") }),
+      confirmLabel: t("common.remove"),
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {

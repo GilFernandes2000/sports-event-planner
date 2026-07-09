@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getToken, getTournamentToken } from "../api";
+import { authHeaders } from "../api";
 
 export type AvatarSize = "sm" | "md" | "lg";
 
@@ -30,13 +30,8 @@ export default function PlayerAvatar({ id, name, hasPhoto, size = "md", classNam
 
     let cancelled = false;
     let objectUrl: string | null = null;
-    const headers: Record<string, string> = {};
-    const adminToken = getToken();
-    const tournamentToken = getTournamentToken();
-    if (adminToken) headers.authorization = `Bearer ${adminToken}`;
-    if (tournamentToken) headers["x-tournament-token"] = tournamentToken;
 
-    fetch(`/api/players/${id}/photo`, { headers })
+    fetch(`/api/players/${id}/photo`, { headers: authHeaders() })
       .then((res) => (res.ok ? res.blob() : null))
       .then((blob) => {
         if (cancelled || !blob) return;

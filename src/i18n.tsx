@@ -23,6 +23,9 @@ const en: Record<string, string> = {
   "common.create": "Create",
   "common.select": "Select",
   "common.selected": "Selected",
+  "common.confirm": "Confirm",
+  "common.networkError": "Can't reach the server. Check your internet connection and try again.",
+  "confirm.title": "Are you sure?",
 
   // header / nav / footer
   "nav.standings": "Standings",
@@ -107,6 +110,7 @@ const en: Record<string, string> = {
   "stats.totalPts": "{n} total pts",
   "stats.teamStandings": "Team standings",
   "stats.playerLeaderboard": "Player leaderboard",
+  "stats.champion": "Champions: {name}",
   "stats.awards": "Awards",
   "stats.publicView": "Public TV view:",
   "stats.openDisplay": "Open display mode",
@@ -336,6 +340,7 @@ const en: Record<string, string> = {
   // game card
   "game.gameNum": "Game {id}",
   "game.final": "Final",
+  "game.live": "Live",
   "game.scheduled": "Scheduled",
   "game.waitingTeams": "Waiting for both teams to be decided.",
   "game.tbd": "TBD",
@@ -373,6 +378,9 @@ const fr: Record<string, string> = {
   "common.create": "Créer",
   "common.select": "Choisir",
   "common.selected": "Sélectionné",
+  "common.confirm": "Confirmer",
+  "common.networkError": "Impossible de joindre le serveur. Vérifiez votre connexion internet et réessayez.",
+  "confirm.title": "Êtes-vous sûr ?",
 
   "nav.standings": "Classement",
   "nav.games": "Matchs",
@@ -453,6 +461,7 @@ const fr: Record<string, string> = {
   "stats.totalPts": "{n} pts au total",
   "stats.teamStandings": "Classement des équipes",
   "stats.playerLeaderboard": "Classement des joueurs",
+  "stats.champion": "Champions : {name}",
   "stats.awards": "Récompenses",
   "stats.publicView": "Affichage public :",
   "stats.openDisplay": "Mode écran",
@@ -670,6 +679,7 @@ const fr: Record<string, string> = {
 
   "game.gameNum": "Match {id}",
   "game.final": "Terminé",
+  "game.live": "En direct",
   "game.scheduled": "Prévu",
   "game.waitingTeams": "En attente de la désignation des deux équipes.",
   "game.tbd": "À déterminer",
@@ -706,6 +716,9 @@ const pt: Record<string, string> = {
   "common.create": "Criar",
   "common.select": "Selecionar",
   "common.selected": "Selecionado",
+  "common.confirm": "Confirmar",
+  "common.networkError": "Não foi possível ligar ao servidor. Verifique a sua ligação à internet e tente novamente.",
+  "confirm.title": "Tem a certeza?",
 
   "nav.standings": "Classificação",
   "nav.games": "Jogos",
@@ -786,6 +799,7 @@ const pt: Record<string, string> = {
   "stats.totalPts": "{n} pts no total",
   "stats.teamStandings": "Classificação das equipas",
   "stats.playerLeaderboard": "Classificação dos jogadores",
+  "stats.champion": "Campeões: {name}",
   "stats.awards": "Prémios",
   "stats.publicView": "Vista pública:",
   "stats.openDisplay": "Modo ecrã",
@@ -1003,6 +1017,7 @@ const pt: Record<string, string> = {
 
   "game.gameNum": "Jogo {id}",
   "game.final": "Terminado",
+  "game.live": "Ao vivo",
   "game.scheduled": "Agendado",
   "game.waitingTeams": "À espera da definição das duas equipas.",
   "game.tbd": "Por definir",
