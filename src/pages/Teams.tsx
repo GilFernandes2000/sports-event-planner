@@ -5,6 +5,7 @@ import { useTournament } from "../TournamentContext";
 import { useI18n } from "../i18n";
 import NoTournament from "../components/NoTournament";
 import { PlayerName } from "../components/PlayerAvatar";
+import { useConfirm } from "../components/ConfirmDialog";
 import type { Player } from "../types";
 
 interface LocalTeam {
@@ -14,8 +15,9 @@ interface LocalTeam {
 
 export default function Teams() {
   const { isAdmin } = useAdmin();
-  const { currentId } = useTournament();
+  const { currentId, current } = useTournament();
   const { t } = useI18n();
+  const confirm = useConfirm();
   const [roster, setRoster] = useState<Player[]>([]);
   const [teams, setTeams] = useState<LocalTeam[]>([]);
   const [bench, setBench] = useState<number[]>([]);
@@ -27,6 +29,7 @@ export default function Teams() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
+  const minPlayers = (current?.team_size ?? 2) * 2;
   const playerMap = useMemo(() => new Map(roster.map((p) => [p.id, p] as const)), [roster]);
 
   const load = async () => {
@@ -141,7 +144,7 @@ export default function Teams() {
 
   const unlock = async () => {
     if (!currentId) return;
-    if (!confirm(t("teams.confirmUnlock"))) return;
+    if (!(await confirm({ message: t("teams.confirmUnlock"), danger: true }))) return;
     setBusy(true);
     setError(null);
     try {
@@ -215,7 +218,9 @@ export default function Teams() {
 
       {isAdmin && teams.length === 0 && (
         <div className="empty">
-          {roster.length < 4 ? t("teams.needPlayers", { n: roster.length }) : t("teams.hitGenerate")}
+          {roster.length < minPlayers
+            ? t("teams.needPlayers", { min: minPlayers, n: roster.length })
+            : t("teams.hitGenerate")}
         </div>
       )}
 

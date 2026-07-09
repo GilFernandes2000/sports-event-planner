@@ -3,7 +3,7 @@ import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "reac
 import { useAdmin } from "./AdminContext";
 import { useTournamentAccess } from "./TournamentAccessContext";
 import { useTournament } from "./TournamentContext";
-import { useI18n, LANGUAGES, type Lang } from "./i18n";
+import { useI18n, LanguageSwitcher } from "./i18n";
 import Home from "./pages/Home";
 import AdminAuthModal from "./components/AdminAuthModal";
 import AuthCallback from "./pages/AuthCallback";
@@ -14,24 +14,10 @@ import Teams from "./pages/Teams";
 import Dashboard from "./pages/Dashboard";
 import Roster from "./pages/Roster";
 import Tournaments from "./pages/Tournaments";
+import Display from "./pages/Display";
 
-function LanguageSwitcher() {
-  const { lang, setLang, t } = useI18n();
-  return (
-    <select
-      className="lang-pick"
-      value={lang}
-      onChange={(e) => setLang(e.target.value as Lang)}
-      aria-label={t("lang.label")}
-      title={t("lang.label")}
-    >
-      {LANGUAGES.map((l) => (
-        <option key={l.code} value={l.code}>
-          {l.short}
-        </option>
-      ))}
-    </select>
-  );
+function LanguageSwitcherNav() {
+  return <LanguageSwitcher />;
 }
 
 function AdminButton() {
@@ -135,7 +121,7 @@ function AppShell() {
             <span>2v2</span>
           </div>
           <TournamentHeader />
-          <LanguageSwitcher />
+          <LanguageSwitcherNav />
           <AdminButton />
         </header>
 
@@ -147,8 +133,10 @@ function AppShell() {
           <NavLink to="/teams">{t("nav.teams")}</NavLink>
           <NavLink to="/roster">{t("nav.roster")}</NavLink>
           <NavLink to="/enroll">{t("nav.enroll")}</NavLink>
-          <NavLink to="/players">{t("nav.players")}</NavLink>
-          <NavLink to="/tournaments">{t("nav.events")}</NavLink>
+          {/* Directory and event management are organiser tools; keep the
+              participant nav short and focused on game day. */}
+          {isAdmin && <NavLink to="/players">{t("nav.players")}</NavLink>}
+          {isAdmin && <NavLink to="/tournaments">{t("nav.events")}</NavLink>}
         </nav>
       </div>
 
@@ -175,6 +163,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/display/:slug" element={<Display />} />
       <Route path="/*" element={<AppShell />} />
     </Routes>
   );

@@ -84,42 +84,41 @@ export interface SuggestedTeam {
 
 export interface BalanceResult {
   teams: SuggestedTeam[];
-  leftover: Player | null; // odd player out, if any
+  leftover: Player[]; // unassigned players when roster doesn't divide evenly
   balanceScore: number; // spread between strongest and weakest team (lower is fairer)
   averageTeamRating: number;
 }
 
 /**
- * Greedy "snake" pairing: sort by rating then repeatedly pair the strongest
- * remaining player with the weakest remaining player. This keeps every pair's
- * combined rating close to the average, which is what we want for fair 2v2s.
+ * Greedy "snake" grouping: sort by rating then repeatedly build teams by
+ * alternating picks from the strongest and weakest remaining players.
  */
-export function suggestTeams(pool: Player[]): BalanceResult {
+export function suggestTeams(pool: Player[], teamSize = 2): BalanceResult {
+  const size = Math.max(2, Math.min(5, Math.floor(teamSize) || 2));
   const rated = ratePlayers(pool).sort((a, b) => b.rating - a.rating);
 
-  let leftover: Player | null = null;
+  const leftover: Player[] = [];
   const working = [...rated];
-  if (working.length % 2 === 1) {
-    // The median player sits out so the remaining pairs stay balanced.
-    const midIndex = Math.floor(working.length / 2);
-    leftover = working.splice(midIndex, 1)[0].player;
+  const remainder = working.length % size;
+  if (remainder !== 0) {
+    const startIdx = Math.floor((working.length - remainder) / 2);
+    for (let i = 0; i < remainder; i++) {
+      leftover.push(working.splice(startIdx, 1)[0].player);
+    }
   }
 
   const teams: SuggestedTeam[] = [];
-  let i = 0;
-  let j = working.length - 1;
-  let n = 1;
-  while (i < j) {
-    const a = working[i];
-    const b = working[j];
+  let teamNum = 1;
+  while (working.length >= size) {
+    const members: RatedPlayer[] = [];
+    for (let i = 0; i < size; i++) {
+      members.push(i % 2 === 0 ? working.shift()! : working.pop()!);
+    }
     teams.push({
-      name: `Team ${n}`,
-      players: [a.player, b.player],
-      rating: Math.round((a.rating + b.rating) * 10) / 10,
+      name: `Team ${teamNum++}`,
+      players: members.map((m) => m.player),
+      rating: Math.round(members.reduce((s, m) => s + m.rating, 0) * 10) / 10,
     });
-    i++;
-    j--;
-    n++;
   }
 
   const ratings = teams.map((t) => t.rating);

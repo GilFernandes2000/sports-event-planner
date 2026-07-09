@@ -11,8 +11,20 @@ import {
 
 const LOGIN_ERROR = "Invalid tournament or password.";
 
-function publicTournament(t: { id: number; name: string; created_at: string }) {
-  return { id: t.id, name: t.name, created_at: t.created_at };
+function publicTournament(t: NonNullable<ReturnType<typeof tournaments.get>>) {
+  return {
+    id: t.id,
+    name: t.name,
+    share_slug: t.share_slug,
+    event_date: t.event_date,
+    location: t.location,
+    team_size: t.team_size,
+    game_duration_min: t.game_duration_min,
+    scoring_preset: t.scoring_preset,
+    format_type: t.format_type,
+    status: t.status,
+    created_at: t.created_at,
+  };
 }
 
 export default async function accessRoutes(app: FastifyInstance) {

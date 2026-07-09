@@ -5,6 +5,7 @@ import {
   getTournamentToken,
   setTournamentAccessId,
   setTournamentToken,
+  type AccessLoginResponse,
 } from "./api";
 
 interface TournamentAccessState {
@@ -12,6 +13,7 @@ interface TournamentAccessState {
   loading: boolean;
   tournamentId: number | null;
   tournamentName: string | null;
+  tournamentMeta: AccessLoginResponse["tournament"] | null;
   login: (name: string, password: string) => Promise<{ id: number; name: string }>;
   logout: () => void;
 }
@@ -22,6 +24,7 @@ export function TournamentAccessProvider({ children }: { children: ReactNode }) 
   const [hasAccess, setHasAccess] = useState<boolean>(!!getTournamentToken());
   const [tournamentId, setTournamentId] = useState<number | null>(() => getTournamentAccessId());
   const [tournamentName, setTournamentName] = useState<string | null>(null);
+  const [tournamentMeta, setTournamentMeta] = useState<AccessLoginResponse["tournament"] | null>(null);
   const [loading, setLoading] = useState(!!getTournamentToken());
 
   useEffect(() => {
@@ -29,6 +32,7 @@ export function TournamentAccessProvider({ children }: { children: ReactNode }) 
       setHasAccess(false);
       setTournamentId(null);
       setTournamentName(null);
+      setTournamentMeta(null);
     };
     window.addEventListener("tournament-unauthorized", onUnauth);
 
@@ -40,6 +44,7 @@ export function TournamentAccessProvider({ children }: { children: ReactNode }) 
             setHasAccess(true);
             setTournamentId(res.tournament.id);
             setTournamentName(res.tournament.name);
+            setTournamentMeta(res.tournament);
             setTournamentAccessId(res.tournament.id);
           } else {
             setTournamentToken(null);
@@ -47,6 +52,7 @@ export function TournamentAccessProvider({ children }: { children: ReactNode }) 
             setHasAccess(false);
             setTournamentId(null);
             setTournamentName(null);
+            setTournamentMeta(null);
           }
         })
         .catch(() => {
@@ -55,6 +61,7 @@ export function TournamentAccessProvider({ children }: { children: ReactNode }) 
           setHasAccess(false);
           setTournamentId(null);
           setTournamentName(null);
+          setTournamentMeta(null);
         })
         .finally(() => setLoading(false));
     } else {
@@ -71,6 +78,7 @@ export function TournamentAccessProvider({ children }: { children: ReactNode }) 
     setHasAccess(true);
     setTournamentId(tournament.id);
     setTournamentName(tournament.name);
+    setTournamentMeta(tournament);
     return tournament;
   };
 
@@ -81,11 +89,12 @@ export function TournamentAccessProvider({ children }: { children: ReactNode }) 
     setHasAccess(false);
     setTournamentId(null);
     setTournamentName(null);
+    setTournamentMeta(null);
   };
 
   return (
     <TournamentAccessCtx.Provider
-      value={{ hasAccess, loading, tournamentId, tournamentName, login, logout }}
+      value={{ hasAccess, loading, tournamentId, tournamentName, tournamentMeta, login, logout }}
     >
       {children}
     </TournamentAccessCtx.Provider>

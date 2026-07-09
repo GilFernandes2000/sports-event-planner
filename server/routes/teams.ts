@@ -5,6 +5,14 @@ import { requireAdminTournament, requireTournamentAccess } from "../services/aut
 import { playersForTournament } from "../services/player-scope.js";
 import type { TeamWithMembers } from "../types.js";
 
+function teamSizeFor(tournamentId: number): number {
+  return tournaments.get(tournamentId)?.team_size ?? 2;
+}
+
+function minPlayersFor(teamSize: number): number {
+  return teamSize * 2;
+}
+
 function teamsWithMembers(tournamentId: number): TeamWithMembers[] {
   const ratingMap = new Map(
     ratePlayers(playersForTournament(tournamentId)).map((r) => [r.player.id, r.rating] as const)
@@ -36,7 +44,8 @@ export default async function teamRoutes(app: FastifyInstance) {
   app.post("/api/tournaments/:tid/teams/suggest", { preHandler: requireAdminTournament }, async (req, reply) => {
     const tid = Number((req.params as { tid: string }).tid);
     if (!requireTournament(tid, reply)) return;
-    return suggestTeams(tournaments.roster(tid));
+    const teamSize = teamSizeFor(tid);
+    return suggestTeams(tournaments.roster(tid), teamSize);
   });
 
   // Admin: generate balanced teams from the roster and persist them.
@@ -45,12 +54,22 @@ export default async function teamRoutes(app: FastifyInstance) {
     if (!requireTournament(tid, reply)) return;
     if (teams.anyLocked(tid)) return reply.code(409).send({ error: "Teams are locked. Unlock before regenerating." });
     const roster = tournaments.roster(tid);
-    if (roster.length < 4) {
-      return reply.code(400).send({ error: `Add at least 4 players to the roster first (currently ${roster.length}).` });
+    const teamSize = teamSizeFor(tid);
+    const minPlayers = minPlayersFor(teamSize);
+    if (roster.length < minPlayers) {
+      return reply
+        .code(400)
+        .send({ error: `Add at least ${minPlayers} players to the roster first (currently ${roster.length}).` });
     }
-    const result = suggestTeams(roster);
+    const result = suggestTeams(roster, teamSize);
     teams.replaceAll(tid, result.teams.map((t) => ({ name: t.name, playerIds: t.players.map((p) => p.id) })));
-    return { teams: teamsWithMembers(tid), locked: false, leftover: result.leftover, balanceScore: result.balanceScore };
+    return {
+      teams: teamsWithMembers(tid),
+      locked: false,
+      leftover: result.leftover,
+      balanceScore: result.balanceScore,
+      teamSize,
+    };
   });
 
   // Admin: manual override - replace the entire set of teams.

@@ -26,18 +26,60 @@ export interface PlayerLeader {
   pointsPerGame: number;
 }
 
+export interface Award {
+  key: string;
+  playerId?: number;
+  playerName?: string;
+  teamName?: string;
+  value?: number;
+  wins?: number;
+  losses?: number;
+}
+
 export interface Highlights {
   topScorer: PlayerLeader | null;
   bestTeam: TeamStanding | null;
   highestScoringGame: { label: string | null; teams: string; total: number } | null;
+  clutchWin: { label: string | null; teams: string; margin: number } | null;
   totalGamesPlayed: number;
   totalPointsScored: number;
+  awards: Award[];
 }
 
 export interface StatsResponse {
   standings: TeamStanding[];
   players: PlayerLeader[];
   highlights: Highlights;
+}
+
+/** 1 = first team won head-to-head, -1 = second won, 0 = tied or no meeting. */
+function headToHead(teamA: number, teamB: number, finals: Game[]): number {
+  for (const g of finals) {
+    if (g.team_a_id === teamA && g.team_b_id === teamB) {
+      const sa = g.score_a as number;
+      const sb = g.score_b as number;
+      if (sa > sb) return 1;
+      if (sb > sa) return -1;
+      return 0;
+    }
+    if (g.team_a_id === teamB && g.team_b_id === teamA) {
+      const sa = g.score_a as number;
+      const sb = g.score_b as number;
+      if (sb > sa) return 1;
+      if (sa > sb) return -1;
+      return 0;
+    }
+  }
+  return 0;
+}
+
+function compareStandings(a: TeamStanding, b: TeamStanding, finals: Game[]): number {
+  if (a.points !== b.points) return b.points - a.points;
+  const h2h = headToHead(a.teamId, b.teamId, finals);
+  if (h2h !== 0) return -h2h;
+  if (a.diff !== b.diff) return b.diff - a.diff;
+  if (a.pointsFor !== b.pointsFor) return b.pointsFor - a.pointsFor;
+  return a.teamId - b.teamId;
 }
 
 export function computeStats(tournamentId: number): StatsResponse {
@@ -102,7 +144,7 @@ export function computeStats(tournamentId: number): StatsResponse {
 
   const standingsList = [...standings.values()]
     .map((s) => ({ ...s, diff: s.pointsFor - s.pointsAgainst }))
-    .sort((x, y) => y.points - x.points || y.diff - x.diff || y.pointsFor - x.pointsFor);
+    .sort((x, y) => compareStandings(x, y, finals));
 
   // ---- Player leaderboard (only finalised games in this tournament) ----
   const teamNameByPlayer = new Map<number, string>();
@@ -148,39 +190,86 @@ export function computeStats(tournamentId: number): StatsResponse {
     }))
     .sort((x, y) => y.totalPoints - x.totalPoints || y.pointsPerGame - x.pointsPerGame);
 
-  // ---- Highlights ----
+  // ---- Highlights & awards ----
   const teamNameById = new Map(teams.map((t) => [t.id, t.name] as const));
   let highestScoringGame: Highlights["highestScoringGame"] = null;
+  let clutchWin: Highlights["clutchWin"] = null;
   for (const g of finals) {
-    const total = (g.score_a as number) + (g.score_b as number);
+    const sa = g.score_a as number;
+    const sb = g.score_b as number;
+    const total = sa + sb;
+    const teamsLabel = `${teamNameById.get(g.team_a_id as number) ?? "?"} vs ${teamNameById.get(g.team_b_id as number) ?? "?"}`;
     if (!highestScoringGame || total > highestScoringGame.total) {
-      highestScoringGame = {
-        label: g.label,
-        teams: `${teamNameById.get(g.team_a_id as number) ?? "?"} vs ${teamNameById.get(g.team_b_id as number) ?? "?"}`,
-        total,
-      };
+      highestScoringGame = { label: g.label, teams: teamsLabel, total };
+    }
+    if (sa !== sb) {
+      const margin = Math.abs(sa - sb);
+      if (!clutchWin || margin < clutchWin.margin) {
+        clutchWin = { label: g.label, teams: teamsLabel, margin };
+      }
     }
   }
 
   const totalPointsScored = finals.reduce((s, g) => s + (g.score_a as number) + (g.score_b as number), 0);
 
+  const awards: Award[] = [];
+  if (playerLeaders[0]) {
+    awards.push({
+      key: "mvp",
+      value: playerLeaders[0].totalPoints,
+      playerId: playerLeaders[0].playerId,
+      playerName: playerLeaders[0].name,
+    });
+  }
+  const bestShooter = playerLeaders.filter((p) => p.gamesPlayed >= 2).sort((a, b) => b.pointsPerGame - a.pointsPerGame)[0];
+  if (bestShooter && bestShooter.playerId !== playerLeaders[0]?.playerId) {
+    awards.push({
+      key: "bestShooter",
+      value: bestShooter.pointsPerGame,
+      playerId: bestShooter.playerId,
+      playerName: bestShooter.name,
+    });
+  }
+  if (standingsList.find((s) => s.played > 0)) {
+    const leader = standingsList.find((s) => s.played > 0)!;
+    awards.push({
+      key: "leadingTeam",
+      wins: leader.wins,
+      losses: leader.losses,
+      teamName: leader.name,
+    });
+  }
+  if (clutchWin) {
+    awards.push({
+      key: "clutchWin",
+      value: clutchWin.margin,
+      teamName: clutchWin.teams,
+    });
+  }
+  if (highestScoringGame) {
+    awards.push({
+      key: "shootout",
+      value: highestScoringGame.total,
+      teamName: highestScoringGame.teams,
+    });
+  }
+
   const highlights: Highlights = {
     topScorer: playerLeaders[0] ?? null,
     bestTeam: standingsList.find((s) => s.played > 0) ?? null,
     highestScoringGame,
+    clutchWin,
     totalGamesPlayed: finals.length,
     totalPointsScored,
+    awards,
   };
 
   return { standings: standingsList, players: playerLeaders, highlights };
 }
 
 /** Display label for an unresolved bracket slot, e.g. "Winner of Game 3". */
-function placeholderName(sourceMatchId: number | null, result: string | null): string {
-  if (!sourceMatchId) return "TBD";
-  const src = gamesRepo.get(sourceMatchId);
-  const label = src?.label ?? `Game ${sourceMatchId}`;
-  return `${result === "loser" ? "Loser" : "Winner"} of ${label}`;
+function placeholderName(_sourceMatchId: number | null, _result: string | null): string {
+  return "TBD";
 }
 
 export function gameView(g: Game) {

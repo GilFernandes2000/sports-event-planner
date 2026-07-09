@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS admins (
   password_hash TEXT,
   google_id TEXT UNIQUE,
   display_name TEXT,
+  status TEXT NOT NULL DEFAULT 'approved',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -31,6 +32,14 @@ CREATE TABLE IF NOT EXISTS tournaments (
   name TEXT NOT NULL,
   password_hash TEXT NOT NULL DEFAULT '',
   admin_id INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+  share_slug TEXT UNIQUE,
+  event_date TEXT,
+  location TEXT,
+  team_size INTEGER NOT NULL DEFAULT 2,
+  game_duration_min INTEGER NOT NULL DEFAULT 10,
+  scoring_preset TEXT NOT NULL DEFAULT 'standard',
+  format_type TEXT NOT NULL DEFAULT 'round_robin',
+  status TEXT NOT NULL DEFAULT 'active',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -87,7 +96,33 @@ CREATE TABLE IF NOT EXISTS games (
 CREATE TABLE IF NOT EXISTS admin_tokens (
   token TEXT PRIMARY KEY,
   admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL DEFAULT (datetime('now', '+30 days')),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS admin_email_verifications (
+  admin_id INTEGER PRIMARY KEY REFERENCES admins(id) ON DELETE CASCADE,
+  code_hash TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS admin_password_resets (
+  admin_id INTEGER PRIMARY KEY REFERENCES admins(id) ON DELETE CASCADE,
+  code_hash TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Co-admins for a tournament. The owner stays in tournaments.admin_id and is
+-- never duplicated in here.
+CREATE TABLE IF NOT EXISTS tournament_admins (
+  tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (tournament_id, admin_id)
 );
 
 CREATE TABLE IF NOT EXISTS player_game_stats (

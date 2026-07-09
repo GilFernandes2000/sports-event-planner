@@ -14,6 +14,9 @@ championship with friends and family:
 It is designed to run as a single process on a Raspberry Pi (or any computer)
 and be opened by everyone on the same Wi-Fi.
 
+See [`docs/REMODEL_REPORT.md`](docs/REMODEL_REPORT.md) for the research notes,
+design direction, challenge questions, and latest remodel test report.
+
 ---
 
 ## Tech stack
@@ -42,7 +45,8 @@ npm run dev
 The default organiser flow in development: open the home page, choose **Create an
 account** (or use Google if configured), then create a tournament on **Events**.
 
-Set `PUBLIC_URL` and optional Google OAuth vars in `.env` (see `.env.example`).
+Set `PUBLIC_URL`, optional Google OAuth vars, and production email verification
+vars in `.env` (see `.env.example`).
 
 ---
 
@@ -93,6 +97,12 @@ TLS). Never send passwords over plain HTTP.
 
 - Organisers register with email/password or Google; each account only sees its own
   tournaments.
+- Email/password organiser accounts must verify a 6-digit code sent to their
+  email before they can log in. Google sign-in is accepted as verified because
+  Google has already verified the email address.
+- In production, configure `RESEND_API_KEY` and `EMAIL_FROM` for verification
+  email delivery. In development, verification codes are printed to the server
+  console when email delivery is not configured.
 - When creating a tournament, set a strong **participant password** (random string).
   Share the tournament name and password with players.
 - Login attempts are rate-limited (10 per 15 minutes per IP).
@@ -130,6 +140,8 @@ After=network.target
 [Service]
 WorkingDirectory=/home/pi/sports-event-planner
 Environment=PUBLIC_URL=https://your-domain.example
+Environment=RESEND_API_KEY=your-resend-api-key
+Environment="EMAIL_FROM=2v2 Basketball <hello@your-domain.example>"
 Environment=PORT=3000
 ExecStart=/usr/bin/npm start
 Restart=on-failure
