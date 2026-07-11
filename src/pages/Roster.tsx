@@ -148,7 +148,8 @@ export default function Roster() {
               <div className="player-main">
                 <PlayerName id={p.id} name={p.name} hasPhoto={p.has_photo} />
                 <div className="player-meta muted">
-                  {p.age ? t("players.ageY", { n: p.age }) : t("players.ageUnknown")} ·{" "}
+                  {p.age ? t("players.ageY", { n: p.age }) : t("players.ageUnknown")}
+                  {p.gender ? ` · ${t(`gender.${p.gender}`)}` : ""} ·{" "}
                   {p.height_cm ? `${p.height_cm}cm` : "-"} · {t("players.yearsPlaying", { n: p.years_played })}
                   {p.plays_regularly ? ` · ${t("players.regular")}` : ""}
                 </div>

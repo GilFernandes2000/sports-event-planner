@@ -95,6 +95,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export interface PlayerPayload {
   name: string;
   age: number | null;
+  gender: "male" | "female" | null;
   height_cm: number | null;
   weight_kg: number | null;
   years_played: number;
@@ -246,8 +247,11 @@ export const api = {
 
   // ---- teams ----
   getTeams: (tid: number) => request<TeamsResponse>(`/api/tournaments/${tid}/teams`),
-  generateTeams: (tid: number) =>
-    request<TeamsResponse>(`/api/tournaments/${tid}/teams/generate`, { method: "POST" }),
+  generateTeams: (tid: number, opts: { mixGenders?: boolean } = {}) =>
+    request<TeamsResponse>(`/api/tournaments/${tid}/teams/generate`, {
+      method: "POST",
+      body: JSON.stringify(opts),
+    }),
   saveTeams: (tid: number, teams: { name: string; playerIds: number[] }[]) =>
     request<TeamsResponse>(`/api/tournaments/${tid}/teams`, { method: "PUT", body: JSON.stringify({ teams }) }),
   lockTeams: (tid: number) => request<TeamsResponse>(`/api/tournaments/${tid}/teams/lock`, { method: "POST" }),

@@ -89,11 +89,106 @@ export interface BalanceResult {
   averageTeamRating: number;
 }
 
+export interface SuggestOptions {
+  /** Spread each gender as evenly as possible across teams. */
+  mixGenders?: boolean;
+}
+
+function genderKey(p: Player): string {
+  return p.gender ?? "other";
+}
+
+/** Snake draft: alternate picks from the strongest and weakest remaining. */
+function buildSnakeTeams(working: RatedPlayer[], size: number): RatedPlayer[][] {
+  const teams: RatedPlayer[][] = [];
+  const queue = [...working];
+  while (queue.length >= size) {
+    const members: RatedPlayer[] = [];
+    for (let i = 0; i < size; i++) {
+      members.push(i % 2 === 0 ? queue.shift()! : queue.pop()!);
+    }
+    teams.push(members);
+  }
+  return teams;
+}
+
 /**
- * Greedy "snake" grouping: sort by rating then repeatedly build teams by
- * alternating picks from the strongest and weakest remaining players.
+ * Gender-mixed grouping: each gender group is spread as evenly as possible
+ * across teams (smallest group first so its members land on distinct teams),
+ * strongest players going to the currently weakest eligible team. A local
+ * same-gender swap pass then narrows the rating gap without disturbing the
+ * gender distribution.
  */
-export function suggestTeams(pool: Player[], teamSize = 2): BalanceResult {
+function buildMixedTeams(working: RatedPlayer[], size: number): RatedPlayer[][] {
+  const teamCount = working.length / size;
+  const teams: RatedPlayer[][] = Array.from({ length: teamCount }, () => []);
+
+  const groups = new Map<string, RatedPlayer[]>();
+  for (const rp of working) {
+    const key = genderKey(rp.player);
+    const arr = groups.get(key) ?? [];
+    arr.push(rp);
+    groups.set(key, arr);
+  }
+  const ordered = [...groups.entries()].sort((a, b) => a[1].length - b[1].length);
+
+  const teamRating = (t: RatedPlayer[]) => t.reduce((s, m) => s + m.rating, 0);
+  for (const [key, members] of ordered) {
+    for (const rp of members) {
+      const open = teams.filter((t) => t.length < size);
+      open.sort((a, b) => {
+        const ga = a.filter((m) => genderKey(m.player) === key).length;
+        const gb = b.filter((m) => genderKey(m.player) === key).length;
+        if (ga !== gb) return ga - gb;
+        const ra = teamRating(a);
+        const rb = teamRating(b);
+        if (ra !== rb) return ra - rb;
+        return a.length - b.length;
+      });
+      open[0].push(rp);
+    }
+  }
+
+  // Same-gender swaps only, so the gender spread is preserved.
+  const gapOf = (ratings: number[]) => Math.max(...ratings) - Math.min(...ratings);
+  for (let guard = 0; guard < 100; guard++) {
+    const ratings = teams.map(teamRating);
+    let bestGap = gapOf(ratings);
+    let best: { ti: number; tj: number; ai: number; bj: number } | null = null;
+    for (let ti = 0; ti < teams.length; ti++) {
+      for (let tj = ti + 1; tj < teams.length; tj++) {
+        for (let ai = 0; ai < teams[ti].length; ai++) {
+          for (let bj = 0; bj < teams[tj].length; bj++) {
+            const a = teams[ti][ai];
+            const b = teams[tj][bj];
+            if (genderKey(a.player) !== genderKey(b.player)) continue;
+            const next = [...ratings];
+            next[ti] += b.rating - a.rating;
+            next[tj] += a.rating - b.rating;
+            const gap = gapOf(next);
+            if (gap < bestGap - 1e-9) {
+              bestGap = gap;
+              best = { ti, tj, ai, bj };
+            }
+          }
+        }
+      }
+    }
+    if (!best) break;
+    const tmp = teams[best.ti][best.ai];
+    teams[best.ti][best.ai] = teams[best.tj][best.bj];
+    teams[best.tj][best.bj] = tmp;
+  }
+
+  return teams;
+}
+
+/**
+ * Build fairness-balanced teams. Default is a greedy "snake" over ratings;
+ * with `mixGenders` each gender is first spread evenly across teams and
+ * ratings are balanced within that constraint.
+ */
+export function suggestTeams(pool: Player[], teamSize = 2, opts: SuggestOptions = {}): BalanceResult {
   const size = Math.max(2, Math.min(5, Math.floor(teamSize) || 2));
   const rated = ratePlayers(pool).sort((a, b) => b.rating - a.rating);
 
@@ -107,19 +202,12 @@ export function suggestTeams(pool: Player[], teamSize = 2): BalanceResult {
     }
   }
 
-  const teams: SuggestedTeam[] = [];
-  let teamNum = 1;
-  while (working.length >= size) {
-    const members: RatedPlayer[] = [];
-    for (let i = 0; i < size; i++) {
-      members.push(i % 2 === 0 ? working.shift()! : working.pop()!);
-    }
-    teams.push({
-      name: `Team ${teamNum++}`,
-      players: members.map((m) => m.player),
-      rating: Math.round(members.reduce((s, m) => s + m.rating, 0) * 10) / 10,
-    });
-  }
+  const grouped = opts.mixGenders ? buildMixedTeams(working, size) : buildSnakeTeams(working, size);
+  const teams: SuggestedTeam[] = grouped.map((members, i) => ({
+    name: `Team ${i + 1}`,
+    players: members.map((m) => m.player),
+    rating: Math.round(members.reduce((s, m) => s + m.rating, 0) * 10) / 10,
+  }));
 
   const ratings = teams.map((t) => t.rating);
   const averageTeamRating = ratings.length

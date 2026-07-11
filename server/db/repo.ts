@@ -20,6 +20,7 @@ import type { BracketMatchSpec, BracketSide } from "../services/schedule.js";
 export interface PlayerInput {
   name: string;
   age: number | null;
+  gender: "male" | "female" | null;
   height_cm: number | null;
   weight_kg: number | null;
   years_played: number;
@@ -48,15 +49,15 @@ export const players = {
   create(p: PlayerInput, adminId: number): Player {
     const info = db
       .prepare(
-        `INSERT INTO players (name, age, height_cm, weight_kg, years_played, plays_regularly, skill_self_rating, notes, admin_id)
-         VALUES (@name, @age, @height_cm, @weight_kg, @years_played, @plays_regularly, @skill_self_rating, @notes, @admin_id)`
+        `INSERT INTO players (name, age, gender, height_cm, weight_kg, years_played, plays_regularly, skill_self_rating, notes, admin_id)
+         VALUES (@name, @age, @gender, @height_cm, @weight_kg, @years_played, @plays_regularly, @skill_self_rating, @notes, @admin_id)`
       )
       .run({ ...p, plays_regularly: p.plays_regularly ? 1 : 0, admin_id: adminId });
     return this.get(Number(info.lastInsertRowid))!;
   },
   update(id: number, p: PlayerInput): Player | undefined {
     db.prepare(
-      `UPDATE players SET name=@name, age=@age, height_cm=@height_cm, weight_kg=@weight_kg,
+      `UPDATE players SET name=@name, age=@age, gender=@gender, height_cm=@height_cm, weight_kg=@weight_kg,
         years_played=@years_played, plays_regularly=@plays_regularly,
         skill_self_rating=@skill_self_rating, notes=@notes WHERE id=@id`
     ).run({ ...p, plays_regularly: p.plays_regularly ? 1 : 0, id });

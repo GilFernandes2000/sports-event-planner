@@ -8,6 +8,7 @@ import PhotoField from "../components/PhotoField";
 const empty = {
   name: "",
   age: "",
+  gender: "",
   height_cm: "",
   weight_kg: "",
   years_played: "",
@@ -36,6 +37,7 @@ export default function Enroll() {
       const payload: PlayerPayload = {
         name: form.name.trim(),
         age: form.age === "" ? null : Number(form.age),
+        gender: form.gender === "male" || form.gender === "female" ? form.gender : null,
         height_cm: form.height_cm === "" ? null : Number(form.height_cm),
         weight_kg: form.weight_kg === "" ? null : Number(form.weight_kg),
         years_played: form.years_played === "" ? 0 : Number(form.years_played),
@@ -89,16 +91,25 @@ export default function Enroll() {
             />
           </label>
           <label>
-            {t("form.yearsPlaying")}
-            <input
-              type="number"
-              inputMode="numeric"
-              value={form.years_played}
-              onChange={(e) => setForm({ ...form, years_played: e.target.value })}
-              placeholder={t("enroll.yearsPlaceholder")}
-            />
+            {t("form.gender")}
+            <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+              <option value="">{t("gender.unspecified")}</option>
+              <option value="male">{t("gender.male")}</option>
+              <option value="female">{t("gender.female")}</option>
+            </select>
           </label>
         </div>
+
+        <label>
+          {t("form.yearsPlaying")}
+          <input
+            type="number"
+            inputMode="numeric"
+            value={form.years_played}
+            onChange={(e) => setForm({ ...form, years_played: e.target.value })}
+            placeholder={t("enroll.yearsPlaceholder")}
+          />
+        </label>
 
         <div className="grid-2">
           <label>

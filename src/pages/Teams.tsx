@@ -24,6 +24,7 @@ export default function Teams() {
   const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<number | null>(null);
+  const [mixGenders, setMixGenders] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +32,10 @@ export default function Teams() {
 
   const minPlayers = (current?.team_size ?? 2) * 2;
   const playerMap = useMemo(() => new Map(roster.map((p) => [p.id, p] as const)), [roster]);
+  const hasBothGenders = useMemo(
+    () => roster.some((p) => p.gender === "male") && roster.some((p) => p.gender === "female"),
+    [roster]
+  );
 
   const load = async () => {
     if (!currentId) return;
@@ -73,7 +78,7 @@ export default function Teams() {
     setError(null);
     setInfo(null);
     try {
-      await api.generateTeams(currentId);
+      await api.generateTeams(currentId, { mixGenders: mixGenders && hasBothGenders });
       await load();
       setInfo(t("teams.info.created"));
     } catch (err) {
@@ -197,6 +202,16 @@ export default function Teams() {
           <button className="btn btn-primary" onClick={generate} disabled={busy}>
             {teams.length ? t("teams.rebalance") : t("teams.generate")}
           </button>
+          {hasBothGenders && (
+            <label className="checkbox toolbar-check">
+              <input
+                type="checkbox"
+                checked={mixGenders}
+                onChange={(e) => setMixGenders(e.target.checked)}
+              />
+              {t("teams.mixGenders")}
+            </label>
+          )}
           <button className="btn" onClick={save} disabled={busy || !dirty}>
             {t("teams.saveChanges")}
           </button>

@@ -2,6 +2,7 @@ export interface Player {
   id: number;
   name: string;
   age: number | null;
+  gender: "male" | "female" | null;
   height_cm: number | null;
   weight_kg: number | null;
   years_played: number;

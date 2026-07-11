@@ -10,6 +10,7 @@ import type { Player } from "../types";
 type FormState = {
   name: string;
   age: string;
+  gender: string;
   height_cm: string;
   weight_kg: string;
   years_played: string;
@@ -22,6 +23,7 @@ function toForm(p: Player | null): FormState {
   return {
     name: p?.name ?? "",
     age: p?.age?.toString() ?? "",
+    gender: p?.gender ?? "",
     height_cm: p?.height_cm?.toString() ?? "",
     weight_kg: p?.weight_kg?.toString() ?? "",
     years_played: p?.years_played?.toString() ?? "",
@@ -35,6 +37,7 @@ function toPayload(form: FormState): PlayerPayload {
   return {
     name: form.name.trim(),
     age: form.age === "" ? null : Number(form.age),
+    gender: form.gender === "male" || form.gender === "female" ? form.gender : null,
     height_cm: form.height_cm === "" ? null : Number(form.height_cm),
     weight_kg: form.weight_kg === "" ? null : Number(form.weight_kg),
     years_played: form.years_played === "" ? 0 : Number(form.years_played),
@@ -103,14 +106,22 @@ function PlayerModal({
             <input type="number" value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} />
           </label>
           <label>
-            {t("form.yearsPlaying")}
-            <input
-              type="number"
-              value={form.years_played}
-              onChange={(e) => setForm({ ...form, years_played: e.target.value })}
-            />
+            {t("form.gender")}
+            <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+              <option value="">{t("gender.unspecified")}</option>
+              <option value="male">{t("gender.male")}</option>
+              <option value="female">{t("gender.female")}</option>
+            </select>
           </label>
         </div>
+        <label>
+          {t("form.yearsPlaying")}
+          <input
+            type="number"
+            value={form.years_played}
+            onChange={(e) => setForm({ ...form, years_played: e.target.value })}
+          />
+        </label>
         <div className="grid-2">
           <label>
             {t("form.height")}
@@ -232,7 +243,8 @@ export default function Players() {
               <div className="player-main">
                 <PlayerName id={p.id} name={p.name} hasPhoto={p.has_photo} />
                 <div className="player-meta muted">
-                  {p.age ? t("players.ageY", { n: p.age }) : t("players.ageUnknown")} ·{" "}
+                  {p.age ? t("players.ageY", { n: p.age }) : t("players.ageUnknown")}
+                  {p.gender ? ` · ${t(`gender.${p.gender}`)}` : ""} ·{" "}
                   {p.height_cm ? `${p.height_cm}cm` : "-"} · {p.weight_kg ? `${p.weight_kg}kg` : "-"} ·{" "}
                   {t("players.yearsPlaying", { n: p.years_played })}
                   {p.plays_regularly ? ` · ${t("players.regular")}` : ""}

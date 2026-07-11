@@ -1621,3 +1621,75 @@ span.tournament-pick {
     padding: 11px 12px;
   }
 }
+
+/* ---- Display: live game panel ---- */
+.display-live {
+  grid-column: 1 / -1;
+  border-color: rgba(239, 68, 68, 0.55);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(239, 68, 68, 0.14), transparent 40%),
+    var(--card);
+}
+.display-live h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fca5a5;
+}
+.live-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--red);
+  animation: live-pulse 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.display-live-score {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 18px;
+  margin: 10px 0 16px;
+  text-align: center;
+}
+.display-live-name {
+  font-size: clamp(18px, 2.4vw, 28px);
+  font-weight: 800;
+}
+.display-live-points {
+  font-size: clamp(44px, 7vw, 84px);
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--accent);
+}
+.display-live-players {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 28px;
+}
+.display-live-player {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: clamp(15px, 1.8vw, 20px);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--bg-soft);
+}
+.display-live-player strong {
+  color: var(--accent);
+  font-size: 1.15em;
+}
+@media (max-width: 600px) {
+  .display-live-players {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Teams toolbar: mix-genders toggle ---- */
+.toolbar .toolbar-check {
+  margin: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}

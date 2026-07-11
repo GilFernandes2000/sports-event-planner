@@ -63,6 +63,11 @@ export function runMigrations(db: DB): void {
     db.exec("ALTER TABLE players ADD COLUMN has_photo INTEGER NOT NULL DEFAULT 0");
   }
 
+  // Nullable so existing players simply show "not specified" until edited.
+  if (tableExists(db, "players") && !hasColumn(db, "players", "gender")) {
+    db.exec("ALTER TABLE players ADD COLUMN gender TEXT");
+  }
+
   if (tableExists(db, "teams") && !hasColumn(db, "teams", "tournament_id")) {
     db.exec("ALTER TABLE teams ADD COLUMN tournament_id INTEGER");
   }

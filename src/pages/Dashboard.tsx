@@ -168,6 +168,7 @@ function GameCard({
     return init;
   });
   const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Live polling can resolve placeholder sides into real teams; make sure
@@ -189,20 +190,27 @@ function GameCard({
   const resolved = game.teamA.id !== null && game.teamB.id !== null;
   const live = game.status !== "final" && (game.score_a !== null || game.score_b !== null);
 
-  const bump = (id: number, delta: number) =>
+  const bump = (id: number, delta: number) => {
     setPoints((prev) => ({ ...prev, [id]: String(Math.max(0, (Number(prev[id]) || 0) + delta)) }));
+    setDirty(true);
+  };
 
   const sum = (ids: number[]) => ids.reduce((s, id) => s + (Number(points[id]) || 0), 0);
   const scoreA = sum(game.teamA.members.map((m) => m.id));
   const scoreB = sum(game.teamB.members.map((m) => m.id));
 
+  const buildResult = (status: "scheduled" | "final") => {
+    const playerPoints: Record<number, number> = {};
+    for (const [id, v] of Object.entries(points)) playerPoints[Number(id)] = Number(v) || 0;
+    return { score_a: scoreA, score_b: scoreB, status, playerPoints };
+  };
+
   const save = async (status: "scheduled" | "final") => {
     setBusy(true);
+    setDirty(false);
     setError(null);
     try {
-      const playerPoints: Record<number, number> = {};
-      for (const [id, v] of Object.entries(points)) playerPoints[Number(id)] = Number(v) || 0;
-      await api.saveResult(game.id, { score_a: scoreA, score_b: scoreB, status, playerPoints });
+      await api.saveResult(game.id, buildResult(status));
       onChanged();
     } catch (err) {
       setError((err as Error).message);
@@ -210,6 +218,23 @@ function GameCard({
       setBusy(false);
     }
   };
+
+  // Auto-save score changes a moment after the last tap so spectators and
+  // the TV display see points live without the scorer pressing anything.
+  useEffect(() => {
+    if (!dirty || !isAdmin || !resolved || game.status === "final") return;
+    const timer = setTimeout(async () => {
+      setDirty(false);
+      try {
+        await api.saveResult(game.id, buildResult("scheduled"));
+        onChanged();
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty, points, isAdmin, resolved, game.status]);
 
   const del = async () => {
     const ok = await confirm({
@@ -304,7 +329,10 @@ function GameCard({
                       min={0}
                       aria-label={m.name}
                       value={points[m.id] ?? "0"}
-                      onChange={(e) => setPoints({ ...points, [m.id]: e.target.value })}
+                      onChange={(e) => {
+                        setPoints({ ...points, [m.id]: e.target.value });
+                        setDirty(true);
+                      }}
                     />
                     <button
                       type="button"
