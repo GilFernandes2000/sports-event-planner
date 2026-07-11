@@ -319,7 +319,7 @@ export default function Tournaments() {
                   value={form.gameDurationMin ?? 10}
                   onChange={(e) => setField("gameDurationMin", Number(e.target.value))}
                 >
-                  {[8, 10, 12, 15, 20].map((n) => (
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20].map((n) => (
                     <option key={n} value={n}>
                       {t("tournaments.durationMin", { n })}
                     </option>

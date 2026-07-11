@@ -30,7 +30,7 @@ process.env.DB_PATH = dbPath;
 }
 
 const { default: db } = await import("../server/db/index.js");
-const { players, tournaments, teams, games } = await import("../server/db/repo.js");
+const { players, tournaments, teams, games, tournamentAdmins } = await import("../server/db/repo.js");
 const { computeStats } = await import("../server/services/stats.js");
 const { buildSingleElimination } = await import("../server/services/schedule.js");
 
@@ -113,6 +113,33 @@ test("tournament roster, teams, games and stats work end to end", () => {
   assert.equal(stats.highlights.totalPointsScored, 36);
 
   tournaments.remove(t.id);
+});
+
+test("co-admins may manage roster players of their tournament, and nothing else", () => {
+  db.prepare("INSERT INTO admins (email, status) VALUES ('coadmin@example.com', 'approved')").run();
+  const coAdminId = (db.prepare("SELECT id FROM admins WHERE email = 'coadmin@example.com'").get() as { id: number }).id;
+
+  const t = tournaments.create({ name: "Shared Cup", passwordHash: "hash", adminId });
+  const onRoster = players.create({ ...playerInput, name: "On Roster" }, adminId);
+  const offRoster = players.create({ ...playerInput, name: "Off Roster" }, adminId);
+  tournaments.addToRoster(t.id, onRoster.id);
+
+  assert.equal(tournamentAdmins.managesPlayer(coAdminId, onRoster.id), false, "not yet a co-admin");
+
+  tournamentAdmins.add(t.id, coAdminId);
+  assert.equal(tournamentAdmins.managesPlayer(coAdminId, onRoster.id), true, "co-admin manages roster players");
+  assert.equal(
+    tournamentAdmins.managesPlayer(coAdminId, offRoster.id),
+    false,
+    "players outside the tournament stay off-limits"
+  );
+
+  tournamentAdmins.remove(t.id, coAdminId);
+  assert.equal(tournamentAdmins.managesPlayer(coAdminId, onRoster.id), false, "access ends with the co-admin role");
+
+  tournaments.remove(t.id);
+  players.remove(onRoster.id);
+  players.remove(offRoster.id);
 });
 
 test("finishing a bracket game feeds the winner into the next round", () => {

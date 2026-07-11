@@ -3,6 +3,7 @@ import multipart from "@fastify/multipart";
 import { players, type PlayerInput } from "../db/repo.js";
 import { ratePlayers } from "../services/balance.js";
 import {
+  adminCanManagePlayer,
   canManagePlayerPhoto,
   canViewPlayer,
   playerScopeAdminId,
@@ -76,6 +77,24 @@ async function requireOwnedPlayer(
   return true;
 }
 
+/** Owner of the player's directory, or a co-admin of a tournament the player is on. */
+async function requireManageablePlayer(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  playerId: number
+): Promise<boolean> {
+  if (!req.admin) {
+    reply.code(401).send({ error: "Admin authentication required." });
+    return false;
+  }
+  const player = players.get(playerId);
+  if (!player || !adminCanManagePlayer(req.admin.id, player)) {
+    reply.code(404).send({ error: "Player not found." });
+    return false;
+  }
+  return true;
+}
+
 async function requirePlayerPhotoAccess(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -135,10 +154,10 @@ export default async function playerRoutes(app: FastifyInstance) {
     return players.get(id);
   });
 
-  // Admin: remove a player's photo.
+  // Admin (owner or tournament co-admin): remove a player's photo.
   app.delete("/api/players/:id/photo", { preHandler: requireAdmin }, async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
-    if (!(await requireOwnedPlayer(req, reply, id))) return;
+    if (!(await requireManageablePlayer(req, reply, id))) return;
     deletePlayerPhoto(id);
     players.setHasPhoto(id, false);
     return reply.code(204).send();
@@ -151,10 +170,10 @@ export default async function playerRoutes(app: FastifyInstance) {
     return players.create(value!, req.admin!.id);
   });
 
-  // Admin: edit a player in their directory.
+  // Admin (owner or tournament co-admin): edit a player.
   app.put("/api/players/:id", { preHandler: requireAdmin }, async (req, reply) => {
     const id = Number((req.params as { id: string }).id);
-    if (!(await requireOwnedPlayer(req, reply, id))) return;
+    if (!(await requireManageablePlayer(req, reply, id))) return;
     const { value, error } = parsePlayerInput(req.body);
     if (error) return reply.code(400).send({ error });
     return players.update(id, value!);
