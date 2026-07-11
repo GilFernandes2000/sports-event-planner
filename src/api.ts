@@ -247,8 +247,11 @@ export const api = {
 
   // ---- teams ----
   getTeams: (tid: number) => request<TeamsResponse>(`/api/tournaments/${tid}/teams`),
-  generateTeams: (tid: number) =>
-    request<TeamsResponse>(`/api/tournaments/${tid}/teams/generate`, { method: "POST" }),
+  generateTeams: (tid: number, opts: { mixGenders?: boolean } = {}) =>
+    request<TeamsResponse>(`/api/tournaments/${tid}/teams/generate`, {
+      method: "POST",
+      body: JSON.stringify(opts),
+    }),
   saveTeams: (tid: number, teams: { name: string; playerIds: number[] }[]) =>
     request<TeamsResponse>(`/api/tournaments/${tid}/teams`, { method: "PUT", body: JSON.stringify({ teams }) }),
   lockTeams: (tid: number) => request<TeamsResponse>(`/api/tournaments/${tid}/teams/lock`, { method: "POST" }),

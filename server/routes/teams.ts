@@ -45,7 +45,8 @@ export default async function teamRoutes(app: FastifyInstance) {
     const tid = Number((req.params as { tid: string }).tid);
     if (!requireTournament(tid, reply)) return;
     const teamSize = teamSizeFor(tid);
-    return suggestTeams(tournaments.roster(tid), teamSize);
+    const mixGenders = (req.body as { mixGenders?: boolean } | undefined)?.mixGenders === true;
+    return suggestTeams(tournaments.roster(tid), teamSize, { mixGenders });
   });
 
   // Admin: generate balanced teams from the roster and persist them.
@@ -61,7 +62,8 @@ export default async function teamRoutes(app: FastifyInstance) {
         .code(400)
         .send({ error: `Add at least ${minPlayers} players to the roster first (currently ${roster.length}).` });
     }
-    const result = suggestTeams(roster, teamSize);
+    const mixGenders = (req.body as { mixGenders?: boolean } | undefined)?.mixGenders === true;
+    const result = suggestTeams(roster, teamSize, { mixGenders });
     teams.replaceAll(tid, result.teams.map((t) => ({ name: t.name, playerIds: t.players.map((p) => p.id) })));
     return {
       teams: teamsWithMembers(tid),

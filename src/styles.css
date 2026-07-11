@@ -1686,3 +1686,10 @@ span.tournament-pick {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Teams toolbar: mix-genders toggle ---- */
+.toolbar .toolbar-check {
+  margin: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
