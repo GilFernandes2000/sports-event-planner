@@ -246,6 +246,21 @@ export const tournamentAdmins = {
         .all(adminId) as { tournament_id: number }[]
     ).map((r) => r.tournament_id);
   },
+  /**
+   * A co-admin may manage a player when the player is on the roster of a
+   * tournament they co-administer and belongs to that tournament's owner.
+   */
+  managesPlayer(adminId: number, playerId: number): boolean {
+    return !!db
+      .prepare(
+        `SELECT 1 FROM tournament_players tp
+         JOIN tournaments t ON t.id = tp.tournament_id
+         JOIN tournament_admins ta ON ta.tournament_id = tp.tournament_id
+         JOIN players p ON p.id = tp.player_id
+         WHERE tp.player_id = ? AND ta.admin_id = ? AND p.admin_id = t.admin_id`
+      )
+      .get(playerId, adminId);
+  },
 };
 
 /* --------------------------- Tournaments --------------------------- */

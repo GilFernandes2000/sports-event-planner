@@ -1,7 +1,12 @@
 import type { FastifyRequest } from "fastify";
-import { players, tournaments } from "../db/repo.js";
+import { players, tournamentAdmins, tournaments } from "../db/repo.js";
 import type { Player } from "../types.js";
 import { getAdminFromToken, getTournamentSession, tokenFromRequest, tournamentTokenFromRequest } from "./auth.js";
+
+/** Owner of the player's directory, or a co-admin of a tournament the player is on. */
+export function adminCanManagePlayer(adminId: number, player: Player): boolean {
+  return player.admin_id === adminId || tournamentAdmins.managesPlayer(adminId, player.id);
+}
 
 /** Admin id whose player directory applies to this request. */
 export function playerScopeAdminId(req: FastifyRequest): number | null {
@@ -17,7 +22,11 @@ export function playerScopeAdminId(req: FastifyRequest): number | null {
 
 export function canViewPlayer(req: FastifyRequest, player: Player): boolean {
   const scopeId = playerScopeAdminId(req);
-  return scopeId !== null && player.admin_id === scopeId;
+  if (scopeId === null) return false;
+  if (player.admin_id === scopeId) return true;
+  // Co-admins can see players of tournaments they help run.
+  const admin = getAdminFromToken(tokenFromRequest(req));
+  return !!admin && tournamentAdmins.managesPlayer(admin.id, player.id);
 }
 
 export function canManagePlayerPhoto(req: FastifyRequest, playerId: number): boolean {
@@ -25,7 +34,7 @@ export function canManagePlayerPhoto(req: FastifyRequest, playerId: number): boo
   if (!player) return false;
 
   const admin = getAdminFromToken(tokenFromRequest(req));
-  if (admin) return player.admin_id === admin.id;
+  if (admin) return adminCanManagePlayer(admin.id, player);
 
   const session = getTournamentSession(tournamentTokenFromRequest(req));
   if (!session) return false;

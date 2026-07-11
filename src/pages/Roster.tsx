@@ -4,6 +4,7 @@ import { useAdmin } from "../AdminContext";
 import { useTournament } from "../TournamentContext";
 import { useI18n } from "../i18n";
 import NoTournament from "../components/NoTournament";
+import PlayerModal from "../components/PlayerModal";
 import { PlayerName } from "../components/PlayerAvatar";
 import { useConfirm } from "../components/ConfirmDialog";
 import type { Player } from "../types";
@@ -19,6 +20,7 @@ export default function Roster() {
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [editing, setEditing] = useState<Player | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
@@ -159,14 +161,31 @@ export default function Roster() {
                   {p.rating}
                 </div>
                 {isAdmin && (
-                  <button className="btn btn-danger sm" onClick={() => remove(p)} disabled={busy}>
-                    {t("common.remove")}
-                  </button>
+                  <div className="row gap sm">
+                    <button className="btn btn-ghost sm" onClick={() => setEditing(p)}>
+                      {t("common.edit")}
+                    </button>
+                    <button className="btn btn-danger sm" onClick={() => remove(p)} disabled={busy}>
+                      {t("common.remove")}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {editing && (
+        <PlayerModal
+          player={editing}
+          onClose={() => setEditing(null)}
+          onSaved={async () => {
+            setEditing(null);
+            await load();
+            await refresh();
+          }}
+        />
       )}
     </div>
   );

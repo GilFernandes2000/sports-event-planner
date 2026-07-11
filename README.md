@@ -42,6 +42,17 @@ npm run dev
 - Frontend (with hot reload) runs on `http://localhost:5173` and proxies `/api`
   calls to the backend.
 
+Run the test suite (uses Node's built-in test runner, no extra dependencies):
+
+```bash
+npm test
+```
+
+Tests cover the fairness/balancing algorithm (including gender-mixed teams),
+the round-robin and knockout schedulers, player input validation, and a
+database integration pass that verifies boot migrations upgrade an existing
+`data.db` without losing data.
+
 The default organiser flow in development: open the home page, choose **Create an
 account** (or use Google if configured), then create a tournament on **Events**.
 

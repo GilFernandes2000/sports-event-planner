@@ -20,7 +20,8 @@
     "dev:web": "vite",
     "build": "vite build",
     "start": "cross-env NODE_ENV=production tsx --import ./server/load-env.ts server/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"tests/*.test.ts\""
   },
   "dependencies": {
     "@fastify/multipart": "^9.0.3",
