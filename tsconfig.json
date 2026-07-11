@@ -10,9 +10,20 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["node"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "node"
+    ],
     "noEmit": true
   },
-  "include": ["src", "server", "vite.config.ts"]
+  "include": [
+    "src",
+    "server",
+    "vite.config.ts",
+    "tests"
+  ]
 }
