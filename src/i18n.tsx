@@ -287,6 +287,7 @@ const en: Record<string, string> = {
   // display / TV mode
   "display.loading": "Loading tournament…",
   "display.nextGame": "Up next",
+  "display.liveNow": "Live now",
   "display.vs": "vs",
   "display.standings": "Standings",
   "display.awards": "Awards",
@@ -630,6 +631,7 @@ const fr: Record<string, string> = {
 
   "display.loading": "Chargement du tournoi…",
   "display.nextGame": "Prochain match",
+  "display.liveNow": "En direct",
   "display.vs": "vs",
   "display.standings": "Classement",
   "display.awards": "Récompenses",
@@ -968,6 +970,7 @@ const pt: Record<string, string> = {
 
   "display.loading": "A carregar torneio…",
   "display.nextGame": "Próximo jogo",
+  "display.liveNow": "Ao vivo",
   "display.vs": "vs",
   "display.standings": "Classificação",
   "display.awards": "Prémios",

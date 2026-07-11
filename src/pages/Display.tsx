@@ -66,8 +66,18 @@ export default function Display() {
     );
   }
 
-  const { tournament, stats, nextGame, games } = data;
+  const { tournament, stats, games } = data;
   const { standings, highlights } = stats;
+  const liveGames = games.filter(
+    (g) => g.status === "scheduled" && (g.score_a !== null || g.score_b !== null)
+  );
+  const liveIds = new Set(liveGames.map((g) => g.id));
+  const nextGame =
+    games.find(
+      (g) => g.status === "scheduled" && !liveIds.has(g.id) && g.teamA.id !== null && g.teamB.id !== null
+    ) ??
+    games.find((g) => g.status === "scheduled" && !liveIds.has(g.id)) ??
+    null;
   const meta = [
     tournament.event_date,
     tournament.location,
@@ -95,6 +105,39 @@ export default function Display() {
       </header>
 
       <div className="display-grid">
+        {liveGames.map((g) => (
+          <section className="display-panel display-live" key={g.id}>
+            <h2>
+              <span className="live-dot" aria-hidden />
+              {t("display.liveNow")}
+              {g.label ? ` · ${g.label}` : ""}
+            </h2>
+            <div className="display-live-score">
+              <div className="display-live-team">
+                <div className="display-live-name">{g.teamA.name}</div>
+                <div className="display-live-points">{g.score_a ?? 0}</div>
+              </div>
+              <span className="display-vs">{t("common.vs")}</span>
+              <div className="display-live-team">
+                <div className="display-live-name">{g.teamB.name}</div>
+                <div className="display-live-points">{g.score_b ?? 0}</div>
+              </div>
+            </div>
+            <div className="display-live-players">
+              {[g.teamA, g.teamB].map((side) => (
+                <div className="display-live-side" key={side.id}>
+                  {side.members.map((m) => (
+                    <div className="display-live-player" key={m.id}>
+                      <span>{m.name}</span>
+                      <strong>{m.points ?? 0}</strong>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+
         {nextGame && (
           <section className="display-panel display-next">
             <h2>{t("display.nextGame")}</h2>
