@@ -193,6 +193,10 @@ const en: Record<string, string> = {
   // player modal / forms
   "form.name": "Name",
   "form.age": "Age",
+  "form.gender": "Gender",
+  "gender.male": "Male",
+  "gender.female": "Female",
+  "gender.unspecified": "Not specified",
   "form.yearsPlaying": "Years playing",
   "form.height": "Height (cm)",
   "form.weight": "Weight (kg)",
@@ -541,6 +545,10 @@ const fr: Record<string, string> = {
 
   "form.name": "Nom",
   "form.age": "Âge",
+  "form.gender": "Sexe",
+  "gender.male": "Homme",
+  "gender.female": "Femme",
+  "gender.unspecified": "Non précisé",
   "form.yearsPlaying": "Années de pratique",
   "form.height": "Taille (cm)",
   "form.weight": "Poids (kg)",
@@ -880,6 +888,10 @@ const pt: Record<string, string> = {
 
   "form.name": "Nome",
   "form.age": "Idade",
+  "form.gender": "Sexo",
+  "gender.male": "Masculino",
+  "gender.female": "Feminino",
+  "gender.unspecified": "Não especificado",
   "form.yearsPlaying": "Anos a jogar",
   "form.height": "Altura (cm)",
   "form.weight": "Peso (kg)",

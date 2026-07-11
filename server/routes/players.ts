@@ -42,10 +42,13 @@ export function parsePlayerInput(body: unknown): { value?: PlayerInput; error?: 
 
   const notes = typeof b.notes === "string" ? b.notes.trim().slice(0, 280) : null;
 
+  const gender = b.gender === "male" || b.gender === "female" ? b.gender : null;
+
   return {
     value: {
       name,
       age: age === null ? null : Math.round(age),
+      gender,
       height_cm,
       weight_kg,
       years_played: yearsRaw,

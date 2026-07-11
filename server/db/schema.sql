@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS players (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   age INTEGER,
+  gender TEXT,
   height_cm REAL,
   weight_kg REAL,
   years_played REAL NOT NULL DEFAULT 0,
