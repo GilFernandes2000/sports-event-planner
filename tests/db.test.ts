@@ -32,9 +32,7 @@ process.env.DB_PATH = dbPath;
 const { default: db } = await import("../server/db/index.js");
 const { players, tournaments, teams, games, tournamentAdmins } = await import("../server/db/repo.js");
 const { computeStats } = await import("../server/services/stats.js");
-const { buildGroupStage, buildKnockoutFromOrdered, buildSingleElimination } = await import(
-  "../server/services/schedule.js"
-);
+const { buildGroupStage, buildKnockoutFromOrdered } = await import("../server/services/schedule.js");
 
 test("boot migration adds the gender column without losing legacy data", () => {
   const cols = (db.prepare("PRAGMA table_info(players)").all() as { name: string }[]).map((c) => c.name);
@@ -212,22 +210,32 @@ test("finishing a bracket game feeds the winner into the next round", () => {
   ]);
   const teamRows = teams.byTournament(t.id);
 
-  const specs = buildSingleElimination(
-    teamRows.map((tm, i) => ({ id: tm.id, rating: 100 - i })),
-    { seeding: "rating" }
+  const specs = buildKnockoutFromOrdered(
+    teamRows.map((tm) => tm.id),
+    0,
+    { thirdPlace: true }
   );
   games.replaceBracket(t.id, specs);
 
   const all = games.byTournament(t.id);
-  assert.equal(all.length, 3);
+  assert.equal(all.length, 4, "two semis, third place and final");
   const final = all.find((g) => g.label === "Final")!;
+  const third = all.find((g) => g.label === "Third place")!;
   assert.equal(final.team_a_id, null, "final starts undecided");
+  assert.equal(third.team_a_id, null, "third place starts undecided");
 
-  const semi = all.find((g) => g.id === final.a_source_match_id)!;
-  games.setResult(semi.id, { score_a: 10, score_b: 5, status: "final", playerPoints: {} });
+  const semiA = all.find((g) => g.id === final.a_source_match_id)!;
+  const semiB = all.find((g) => g.id === final.b_source_match_id)!;
+  games.setResult(semiA.id, { score_a: 10, score_b: 5, status: "final", playerPoints: {} });
+  games.setResult(semiB.id, { score_a: 7, score_b: 12, status: "final", playerPoints: {} });
 
   const resolvedFinal = games.get(final.id)!;
-  assert.equal(resolvedFinal.team_a_id, semi.team_a_id, "semifinal winner advances to the final");
+  assert.equal(resolvedFinal.team_a_id, semiA.team_a_id, "semifinal winners advance to the final");
+  assert.equal(resolvedFinal.team_b_id, semiB.team_b_id);
+
+  const resolvedThird = games.get(third.id)!;
+  assert.equal(resolvedThird.team_a_id, semiA.team_b_id, "semifinal losers meet for third place");
+  assert.equal(resolvedThird.team_b_id, semiB.team_a_id);
 
   tournaments.remove(t.id);
 });

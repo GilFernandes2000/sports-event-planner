@@ -220,12 +220,38 @@ export function buildRepechage(orderedLoserTeamIds: number[]): BracketMatchSpec[
 }
 
 /**
+ * Third-place match between the semifinal losers. Only possible when the
+ * final's two slots come from real matches (not byes); played before the
+ * final, like a World Cup "small final".
+ */
+function withThirdPlace(specs: BracketMatchSpec[], stage: string): BracketMatchSpec[] {
+  if (specs.length === 0) return specs;
+  const finalRound = Math.max(...specs.map((s) => s.round));
+  const final = specs.find((s) => s.round === finalRound && s.label === "Final");
+  if (!final || final.a.kind !== "source" || final.b.kind !== "source") return specs;
+  const third: BracketMatchSpec = {
+    key: `${stage}_third_place`,
+    label: "Third place",
+    round: finalRound,
+    stage,
+    a: { kind: "source", key: final.a.key, result: "loser" },
+    b: { kind: "source", key: final.b.key, result: "loser" },
+  };
+  return [...specs.filter((s) => s !== final), third, final];
+}
+
+/**
  * Knockout bracket from an explicit seeding order (index 0 = top seed), used
  * for the stage after groups. `roundOffset` shifts round numbers so the
  * knockout sorts after the group games in schedule views.
  */
-export function buildKnockoutFromOrdered(orderedTeamIds: number[], roundOffset = 0): BracketMatchSpec[] {
-  const specs = buildElimination(orderedTeamIds, "knockout", knockoutLabel);
+export function buildKnockoutFromOrdered(
+  orderedTeamIds: number[],
+  roundOffset = 0,
+  opts: { thirdPlace?: boolean } = {}
+): BracketMatchSpec[] {
+  let specs = buildElimination(orderedTeamIds, "knockout", knockoutLabel);
   if (roundOffset > 0) for (const s of specs) s.round += roundOffset;
+  if (opts.thirdPlace) specs = withThirdPlace(specs, "knockout");
   return specs;
 }

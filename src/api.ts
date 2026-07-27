@@ -271,7 +271,7 @@ export const api = {
       `/api/tournaments/${tid}/group-stage`,
       { method: "POST", body: JSON.stringify(opts) }
     ),
-  generateGroupKnockout: (tid: number, opts: { advancePerGroup: number }) =>
+  generateGroupKnockout: (tid: number, opts: { advancePerGroup: number | "all" }) =>
     request<{ gamesCreated: number; qualified: number; games: Game[] }>(
       `/api/tournaments/${tid}/group-knockout`,
       { method: "POST", body: JSON.stringify(opts) }

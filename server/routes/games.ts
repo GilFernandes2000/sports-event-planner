@@ -147,18 +147,20 @@ export default async function gameRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "Finish all group games before starting the knockout stage." });
     }
 
-    const body = req.body as { advancePerGroup?: unknown };
-    const advance = Number(body?.advancePerGroup);
-    if (!Number.isInteger(advance) || advance < 1) {
-      return reply.code(400).send({ error: "At least 1 team must advance from each group." });
-    }
-
     const groups = computeStats(tid).groups;
-    const smallestGroup = Math.min(...groups.map((g) => g.standings.length));
-    if (advance > smallestGroup) {
-      return reply
-        .code(400)
-        .send({ error: `The smallest group only has ${smallestGroup} teams - pick a lower number to advance.` });
+    const largestGroup = Math.max(...groups.map((g) => g.standings.length));
+
+    const body = req.body as { advancePerGroup?: unknown };
+    let advance: number;
+    if (body?.advancePerGroup === "all") {
+      advance = largestGroup;
+    } else {
+      advance = Number(body?.advancePerGroup);
+      if (!Number.isInteger(advance) || advance < 1) {
+        return reply.code(400).send({ error: "At least 1 team must advance from each group." });
+      }
+      // Smaller groups simply send everyone they have.
+      advance = Math.min(advance, largestGroup);
     }
 
     // Rank-major seeding across groups (A1, B1, ..., A2, B2, ...) so group
@@ -175,7 +177,7 @@ export default async function gameRoutes(app: FastifyInstance) {
     }
 
     const roundOffset = Math.max(...groupGames.map((g) => g.round));
-    const specs = buildKnockoutFromOrdered(orderedIds, roundOffset);
+    const specs = buildKnockoutFromOrdered(orderedIds, roundOffset, { thirdPlace: true });
     games.appendBracket(tid, specs);
     return {
       gamesCreated: specs.length,

@@ -508,7 +508,9 @@ export default function Dashboard() {
     setError(null);
     setInfo(null);
     try {
-      const res = await api.generateGroupKnockout(currentId, { advancePerGroup: Number(advancePerGroup) || 2 });
+      const res = await api.generateGroupKnockout(currentId, {
+        advancePerGroup: advancePerGroup === "all" ? "all" : Number(advancePerGroup) || 2,
+      });
       setInfo(t("dash.info.groupKnockout", { q: res.qualified, n: res.gamesCreated }));
       await load();
     } catch (err) {
@@ -613,6 +615,7 @@ export default function Dashboard() {
                       {n}
                     </option>
                   ))}
+                  <option value="all">{t("dash.advanceAll")}</option>
                 </select>
               </label>
               <button

@@ -169,6 +169,32 @@ test("knockout from ordered qualifiers crosses group winners with runners-up", (
   assert.deepEqual(pairs.sort(), [`${A1}-${B2}`, `${B1}-${A2}`].sort());
 });
 
+test("third-place match is played by the semifinal losers, before the final", () => {
+  const specs = buildKnockoutFromOrdered([1, 2, 3, 4], 0, { thirdPlace: true });
+  assert.equal(specs.length, 4); // 2 semis + third place + final
+
+  const third = specs.find((s) => s.label === "Third place")!;
+  const final = specs.find((s) => s.label === "Final")!;
+  assert.ok(third, "third-place match exists");
+  assert.equal(third.round, final.round);
+  assert.ok(specs.indexOf(third) < specs.indexOf(final), "third place is listed before the final");
+
+  assert.equal(third.a.kind, "source");
+  assert.equal(third.b.kind, "source");
+  if (third.a.kind === "source" && third.b.kind === "source" && final.a.kind === "source" && final.b.kind === "source") {
+    assert.equal(third.a.result, "loser");
+    assert.equal(third.b.result, "loser");
+    assert.deepEqual([third.a.key, third.b.key].sort(), [final.a.key, final.b.key].sort(), "same semis feed both games");
+  }
+});
+
+test("no third-place match when the final is reached by byes", () => {
+  // 3 teams: the top seed goes straight to the final, so there is only one semi.
+  const specs = buildKnockoutFromOrdered([1, 2, 3], 0, { thirdPlace: true });
+  assert.equal(specs.filter((s) => s.label === "Third place").length, 0);
+  assert.equal(specs.length, 2);
+});
+
 test("repechage of two losers is a single final", () => {
   const specs = buildRepechage([7, 9]);
   assert.equal(specs.length, 1);
