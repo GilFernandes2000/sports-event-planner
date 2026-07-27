@@ -50,6 +50,56 @@ export function buildRoundRobin(teams: Team[]): ScheduledMatch[] {
   return matches;
 }
 
+/* ----------------------- Group stage (World Cup) ----------------------- */
+
+export interface GroupSpec {
+  name: string; // "A", "B", ...
+  teamIds: number[];
+}
+
+export interface GroupStageResult {
+  groups: GroupSpec[];
+  matches: (ScheduledMatch & { stage: "group"; group_name: string })[];
+}
+
+/**
+ * Split teams into groups of ~`teamsPerGroup` and play a round-robin inside
+ * each group. `orderedTeamIds` is strongest-first; teams are dealt in a snake
+ * so every group gets a similar strength spread (and the top teams land in
+ * different groups).
+ */
+export function buildGroupStage(orderedTeamIds: number[], teamsPerGroup: number): GroupStageResult {
+  const n = orderedTeamIds.length;
+  const groupCount = Math.ceil(n / Math.max(2, teamsPerGroup));
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const groups: GroupSpec[] = Array.from({ length: groupCount }, (_, i) => ({
+    name: letters[i] ?? `G${i + 1}`,
+    teamIds: [],
+  }));
+
+  orderedTeamIds.forEach((id, i) => {
+    const row = Math.floor(i / groupCount);
+    const pos = i % groupCount;
+    const gi = row % 2 === 0 ? pos : groupCount - 1 - pos;
+    groups[gi].teamIds.push(id);
+  });
+
+  const matches: GroupStageResult["matches"] = [];
+  let gameNo = 1;
+  for (const g of groups) {
+    const rr = buildRoundRobin(g.teamIds.map((id) => ({ id } as Team)));
+    for (const m of rr) {
+      matches.push({
+        ...m,
+        label: `Group ${g.name} · Game ${gameNo++}`,
+        stage: "group",
+        group_name: g.name,
+      });
+    }
+  }
+  return { groups, matches };
+}
+
 /* --------------------------- Knockout brackets --------------------------- */
 
 export type BracketSide =
@@ -167,4 +217,15 @@ export function buildSingleElimination(
 /** Repechage mini-bracket among the chosen losers (already ordered best-first). */
 export function buildRepechage(orderedLoserTeamIds: number[]): BracketMatchSpec[] {
   return buildElimination(orderedLoserTeamIds, "repechage", repechageLabel);
+}
+
+/**
+ * Knockout bracket from an explicit seeding order (index 0 = top seed), used
+ * for the stage after groups. `roundOffset` shifts round numbers so the
+ * knockout sorts after the group games in schedule views.
+ */
+export function buildKnockoutFromOrdered(orderedTeamIds: number[], roundOffset = 0): BracketMatchSpec[] {
+  const specs = buildElimination(orderedTeamIds, "knockout", knockoutLabel);
+  if (roundOffset > 0) for (const s of specs) s.round += roundOffset;
+  return specs;
 }

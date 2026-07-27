@@ -266,6 +266,52 @@ export default function Stats() {
         </>
       )}
 
+      {stats.groups.length > 0 && (
+        <>
+          <h2>{t("stats.groupStage")}</h2>
+          <div className="groups-grid">
+            {stats.groups.map((g) => (
+              <div className="card group-card" key={g.name}>
+                <div className="group-title">{t("stats.group", { name: g.name })}</div>
+                <div className="table-wrap">
+                  <table className="table group-table">
+                    <thead>
+                      <tr>
+                        <th className="left">{t("stats.h.team")}</th>
+                        <th>{t("stats.h.played")}</th>
+                        <th>{t("stats.h.wins")}</th>
+                        <th>{t("stats.h.losses")}</th>
+                        <th>{t("stats.h.diff")}</th>
+                        <th>{t("stats.h.pts")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {g.standings.map((s, i) => (
+                        <tr key={s.teamId}>
+                          <td className="left">
+                            <span className={`rank${i < 3 ? ` rank-${i + 1}` : ""}`}>{i + 1}</span>
+                            <span className="team-name-cell">{s.name}</span>
+                          </td>
+                          <td>{s.played}</td>
+                          <td>{s.wins}</td>
+                          <td>{s.losses}</td>
+                          <td className={s.diff > 0 ? "pos" : s.diff < 0 ? "neg" : ""}>
+                            {s.diff > 0 ? `+${s.diff}` : s.diff}
+                          </td>
+                          <td>
+                            <strong>{s.points}</strong>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {standings.length > 0 && (
         <>
           <h2>{t("stats.teamStandings")}</h2>

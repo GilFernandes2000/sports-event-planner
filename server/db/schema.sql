@@ -90,7 +90,8 @@ CREATE TABLE IF NOT EXISTS games (
   score_a INTEGER,
   score_b INTEGER,
   status TEXT NOT NULL DEFAULT 'scheduled',
-  played_at TEXT
+  played_at TEXT,
+  group_name TEXT
 );
 
 -- Admin sessions persisted so a server restart does not log the organiser out.

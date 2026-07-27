@@ -1693,3 +1693,23 @@ span.tournament-pick {
   font-size: 14px;
   white-space: nowrap;
 }
+
+/* ---- Group stage tables ---- */
+.groups-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.group-card {
+  margin-bottom: 0;
+  padding: 12px 14px;
+}
+.group-title {
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.group-table th,
+.group-table td {
+  font-size: 13px;
+}

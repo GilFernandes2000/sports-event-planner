@@ -46,8 +46,14 @@ export interface Highlights {
   awards: Award[];
 }
 
+export interface GroupStandings {
+  name: string;
+  standings: TeamStanding[];
+}
+
 export interface StatsResponse {
   standings: TeamStanding[];
+  groups: GroupStandings[];
   players: PlayerLeader[];
   highlights: Highlights;
 }
@@ -92,59 +98,78 @@ export function computeStats(tournamentId: number): StatsResponse {
   const membersByTeam = new Map<number, Player[]>();
   for (const t of teams) membersByTeam.set(t.id, teamsRepo.membersOf(t.id));
 
-  // ---- Team standings ----
-  const standings = new Map<number, TeamStanding>();
-  for (const t of teams) {
-    standings.set(t.id, {
-      teamId: t.id,
-      name: t.name,
-      members: (membersByTeam.get(t.id) ?? []).map((m) => ({
-        id: m.id,
-        name: m.name,
-        has_photo: m.has_photo,
-      })),
-      played: 0,
-      wins: 0,
-      losses: 0,
-      ties: 0,
-      pointsFor: 0,
-      pointsAgainst: 0,
-      diff: 0,
-      points: 0,
-    });
-  }
-
-  for (const g of finals) {
-    const a = standings.get(g.team_a_id as number);
-    const b = standings.get(g.team_b_id as number);
-    if (!a || !b) continue;
-    const sa = g.score_a as number;
-    const sb = g.score_b as number;
-    a.played++;
-    b.played++;
-    a.pointsFor += sa;
-    a.pointsAgainst += sb;
-    b.pointsFor += sb;
-    b.pointsAgainst += sa;
-    if (sa > sb) {
-      a.wins++;
-      b.losses++;
-      a.points += 2;
-    } else if (sb > sa) {
-      b.wins++;
-      a.losses++;
-      b.points += 2;
-    } else {
-      a.ties++;
-      b.ties++;
-      a.points += 1;
-      b.points += 1;
+  // ---- Team standings (reused for the overall table and each group) ----
+  const buildStandings = (teamSubset: typeof teams, finalsSubset: Game[]): TeamStanding[] => {
+    const standings = new Map<number, TeamStanding>();
+    for (const t of teamSubset) {
+      standings.set(t.id, {
+        teamId: t.id,
+        name: t.name,
+        members: (membersByTeam.get(t.id) ?? []).map((m) => ({
+          id: m.id,
+          name: m.name,
+          has_photo: m.has_photo,
+        })),
+        played: 0,
+        wins: 0,
+        losses: 0,
+        ties: 0,
+        pointsFor: 0,
+        pointsAgainst: 0,
+        diff: 0,
+        points: 0,
+      });
     }
-  }
 
-  const standingsList = [...standings.values()]
-    .map((s) => ({ ...s, diff: s.pointsFor - s.pointsAgainst }))
-    .sort((x, y) => compareStandings(x, y, finals));
+    for (const g of finalsSubset) {
+      const a = standings.get(g.team_a_id as number);
+      const b = standings.get(g.team_b_id as number);
+      if (!a || !b) continue;
+      const sa = g.score_a as number;
+      const sb = g.score_b as number;
+      a.played++;
+      b.played++;
+      a.pointsFor += sa;
+      a.pointsAgainst += sb;
+      b.pointsFor += sb;
+      b.pointsAgainst += sa;
+      if (sa > sb) {
+        a.wins++;
+        b.losses++;
+        a.points += 2;
+      } else if (sb > sa) {
+        b.wins++;
+        a.losses++;
+        b.points += 2;
+      } else {
+        a.ties++;
+        b.ties++;
+        a.points += 1;
+        b.points += 1;
+      }
+    }
+
+    return [...standings.values()]
+      .map((s) => ({ ...s, diff: s.pointsFor - s.pointsAgainst }))
+      .sort((x, y) => compareStandings(x, y, finalsSubset));
+  };
+
+  const standingsList = buildStandings(teams, finals);
+
+  // ---- Per-group standings (World Cup format) ----
+  const groupGames = allGames.filter((g) => g.stage === "group" && g.group_name);
+  const groupNames = [...new Set(groupGames.map((g) => g.group_name as string))].sort();
+  const groups: GroupStandings[] = groupNames.map((name) => {
+    const inGroup = groupGames.filter((g) => g.group_name === name);
+    const teamIds = new Set<number>();
+    for (const g of inGroup) {
+      if (g.team_a_id !== null) teamIds.add(g.team_a_id);
+      if (g.team_b_id !== null) teamIds.add(g.team_b_id);
+    }
+    const groupTeams = teams.filter((t) => teamIds.has(t.id));
+    const groupFinals = finals.filter((g) => g.stage === "group" && g.group_name === name);
+    return { name, standings: buildStandings(groupTeams, groupFinals) };
+  });
 
   // ---- Player leaderboard (only finalised games in this tournament) ----
   const teamNameByPlayer = new Map<number, string>();
@@ -264,7 +289,7 @@ export function computeStats(tournamentId: number): StatsResponse {
     awards,
   };
 
-  return { standings: standingsList, players: playerLeaders, highlights };
+  return { standings: standingsList, groups, players: playerLeaders, highlights };
 }
 
 /** Display label for an unresolved bracket slot, e.g. "Winner of Game 3". */

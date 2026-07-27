@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildGroupStage,
+  buildKnockoutFromOrdered,
   buildRoundRobin,
   buildSingleElimination,
   buildRepechage,
@@ -113,6 +115,58 @@ test("random seeding still yields a structurally valid bracket", () => {
   const specs = buildSingleElimination(teams, { seeding: "random" });
   assert.equal(specs.length, 5);
   assert.equal(new Set(concreteTeamIds(specs)).size, 6);
+});
+
+test("group stage: 8 teams in groups of 4 -> two groups, full round-robin inside each", () => {
+  const ids = [1, 2, 3, 4, 5, 6, 7, 8]; // strongest first
+  const { groups, matches } = buildGroupStage(ids, 4);
+
+  assert.equal(groups.length, 2);
+  for (const g of groups) assert.equal(g.teamIds.length, 4);
+  assert.equal(matches.length, 12, "6 games per group of 4");
+
+  // Every game stays inside its own group.
+  const groupByTeam = new Map<number, string>();
+  for (const g of groups) for (const id of g.teamIds) groupByTeam.set(id, g.name);
+  for (const m of matches) {
+    assert.equal(groupByTeam.get(m.team_a_id), m.group_name);
+    assert.equal(groupByTeam.get(m.team_b_id), m.group_name);
+    assert.ok(m.label.includes(`Group ${m.group_name}`));
+  }
+
+  // Snake seeding: the two strongest teams land in different groups.
+  assert.notEqual(groupByTeam.get(1), groupByTeam.get(2));
+});
+
+test("group stage: 10 teams in groups of 4 -> three balanced groups, everyone plays", () => {
+  const ids = Array.from({ length: 10 }, (_, i) => i + 1);
+  const { groups, matches } = buildGroupStage(ids, 4);
+
+  assert.equal(groups.length, 3);
+  const sizes = groups.map((g) => g.teamIds.length).sort();
+  assert.deepEqual(sizes, [3, 3, 4]);
+  assert.equal(new Set(groups.flatMap((g) => g.teamIds)).size, 10);
+
+  for (const g of groups) {
+    const n = g.teamIds.length;
+    const inGroup = matches.filter((m) => m.group_name === g.name);
+    assert.equal(inGroup.length, (n * (n - 1)) / 2, `group ${g.name} plays a full round-robin`);
+  }
+});
+
+test("knockout from ordered qualifiers crosses group winners with runners-up", () => {
+  // Rank-major order: A1, B1, A2, B2.
+  const [A1, B1, A2, B2] = [10, 20, 30, 40];
+  const specs = buildKnockoutFromOrdered([A1, B1, A2, B2], 3);
+
+  assert.equal(specs.length, 3);
+  for (const s of specs) assert.ok(s.round > 3, "rounds are offset past the group stage");
+
+  const semis = specs.filter((s) => s.label.startsWith("Semifinal"));
+  const pairs = semis.map((s) =>
+    [s.a.kind === "team" ? s.a.teamId : -1, s.b.kind === "team" ? s.b.teamId : -1].sort((x, y) => x - y).join("-")
+  );
+  assert.deepEqual(pairs.sort(), [`${A1}-${B2}`, `${B1}-${A2}`].sort());
 });
 
 test("repechage of two losers is a single final", () => {

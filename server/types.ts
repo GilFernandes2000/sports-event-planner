@@ -111,6 +111,7 @@ export interface Game {
   score_b: number | null;
   status: "scheduled" | "final";
   played_at: string | null;
+  group_name: string | null;
 }
 
 export interface PlayerGameStat {

@@ -2,9 +2,15 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { games, teams, tournaments } from "../db/repo.js";
 import type { MatchInput, MatchSide } from "../db/repo.js";
 import { requireAdminGame, requireAdminTournament, requireTournamentAccess } from "../services/auth.js";
-import { buildRoundRobin, buildSingleElimination, buildRepechage } from "../services/schedule.js";
+import {
+  buildGroupStage,
+  buildKnockoutFromOrdered,
+  buildRoundRobin,
+  buildSingleElimination,
+  buildRepechage,
+} from "../services/schedule.js";
 import { ratePlayers } from "../services/balance.js";
-import { gameView } from "../services/stats.js";
+import { computeStats, gameView } from "../services/stats.js";
 import { playersForTournament } from "../services/player-scope.js";
 
 function requireTournament(tid: number, reply: FastifyReply): boolean {
@@ -85,6 +91,97 @@ export default async function gameRoutes(app: FastifyInstance) {
     const specs = buildSingleElimination(rated, { seeding });
     games.replaceBracket(tid, specs);
     return { gamesCreated: specs.length, games: games.byTournament(tid).map((g) => gameView(g)) };
+  });
+
+  // Admin: World Cup format step 1 - split teams into groups and play
+  // a round-robin inside each group (replaces all games).
+  app.post("/api/tournaments/:tid/group-stage", { preHandler: requireAdminTournament }, async (req, reply) => {
+    const tid = Number((req.params as { tid: string }).tid);
+    if (!requireTournament(tid, reply)) return;
+
+    const rated = teamsWithRating(tid).sort((a, b) => b.rating - a.rating);
+    if (rated.length < 4) {
+      return reply.code(400).send({ error: "The World Cup format needs at least 4 teams." });
+    }
+
+    const body = req.body as { teamsPerGroup?: unknown };
+    const perGroup = Number(body?.teamsPerGroup);
+    if (!Number.isInteger(perGroup) || perGroup < 2) {
+      return reply.code(400).send({ error: "Pick at least 2 teams per group." });
+    }
+
+    const groupCount = Math.ceil(rated.length / perGroup);
+    if (groupCount < 2) {
+      return reply
+        .code(400)
+        .send({ error: "That group size fits every team in one group - use the round-robin instead." });
+    }
+    if (Math.floor(rated.length / groupCount) < 2) {
+      return reply.code(400).send({ error: "That split would leave a group with a single team - pick a bigger group size." });
+    }
+
+    const { groups, matches } = buildGroupStage(rated.map((t) => t.id), perGroup);
+    games.replaceSchedule(tid, matches);
+    return {
+      groupsCreated: groups.length,
+      gamesCreated: matches.length,
+      games: games.byTournament(tid).map((g) => gameView(g)),
+    };
+  });
+
+  // Admin: World Cup format step 2 - once every group game is final, send the
+  // top N of each group into a knockout bracket (keeps the group games).
+  app.post("/api/tournaments/:tid/group-knockout", { preHandler: requireAdminTournament }, async (req, reply) => {
+    const tid = Number((req.params as { tid: string }).tid);
+    if (!requireTournament(tid, reply)) return;
+
+    const all = games.byTournament(tid);
+    const groupGames = all.filter((g) => g.stage === "group");
+    if (groupGames.length === 0) {
+      return reply.code(400).send({ error: "Create the group stage first." });
+    }
+    if (all.some((g) => g.stage === "knockout")) {
+      return reply.code(409).send({ error: "A knockout stage already exists. Delete those games first to recreate it." });
+    }
+    if (groupGames.some((g) => g.status !== "final")) {
+      return reply.code(400).send({ error: "Finish all group games before starting the knockout stage." });
+    }
+
+    const body = req.body as { advancePerGroup?: unknown };
+    const advance = Number(body?.advancePerGroup);
+    if (!Number.isInteger(advance) || advance < 1) {
+      return reply.code(400).send({ error: "At least 1 team must advance from each group." });
+    }
+
+    const groups = computeStats(tid).groups;
+    const smallestGroup = Math.min(...groups.map((g) => g.standings.length));
+    if (advance > smallestGroup) {
+      return reply
+        .code(400)
+        .send({ error: `The smallest group only has ${smallestGroup} teams - pick a lower number to advance.` });
+    }
+
+    // Rank-major seeding across groups (A1, B1, ..., A2, B2, ...) so group
+    // winners meet runners-up from other groups first, like a World Cup.
+    const orderedIds: number[] = [];
+    for (let rank = 0; rank < advance; rank++) {
+      for (const g of groups) {
+        const team = g.standings[rank];
+        if (team) orderedIds.push(team.teamId);
+      }
+    }
+    if (orderedIds.length < 2) {
+      return reply.code(400).send({ error: "Not enough qualifying teams for a knockout stage." });
+    }
+
+    const roundOffset = Math.max(...groupGames.map((g) => g.round));
+    const specs = buildKnockoutFromOrdered(orderedIds, roundOffset);
+    games.appendBracket(tid, specs);
+    return {
+      gamesCreated: specs.length,
+      qualified: orderedIds.length,
+      games: games.byTournament(tid).map((g) => gameView(g)),
+    };
   });
 
   // Admin: create a second-chance repechage among the best first-round losers.

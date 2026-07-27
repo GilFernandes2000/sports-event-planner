@@ -266,6 +266,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify(opts),
     }),
+  generateGroupStage: (tid: number, opts: { teamsPerGroup: number }) =>
+    request<{ groupsCreated: number; gamesCreated: number; games: Game[] }>(
+      `/api/tournaments/${tid}/group-stage`,
+      { method: "POST", body: JSON.stringify(opts) }
+    ),
+  generateGroupKnockout: (tid: number, opts: { advancePerGroup: number }) =>
+    request<{ gamesCreated: number; qualified: number; games: Game[] }>(
+      `/api/tournaments/${tid}/group-knockout`,
+      { method: "POST", body: JSON.stringify(opts) }
+    ),
   generateRepechage: (tid: number, opts: { count: number }) =>
     request<{ gamesCreated: number; chosen: number; games: Game[] }>(`/api/tournaments/${tid}/repechage`, {
       method: "POST",

@@ -68,6 +68,11 @@ export function runMigrations(db: DB): void {
     db.exec("ALTER TABLE players ADD COLUMN gender TEXT");
   }
 
+  // Group-stage (World Cup format) games carry their group letter.
+  if (tableExists(db, "games") && !hasColumn(db, "games", "group_name")) {
+    db.exec("ALTER TABLE games ADD COLUMN group_name TEXT");
+  }
+
   if (tableExists(db, "teams") && !hasColumn(db, "teams", "tournament_id")) {
     db.exec("ALTER TABLE teams ADD COLUMN tournament_id INTEGER");
   }
