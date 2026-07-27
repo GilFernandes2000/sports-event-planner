@@ -32,7 +32,9 @@ process.env.DB_PATH = dbPath;
 const { default: db } = await import("../server/db/index.js");
 const { players, tournaments, teams, games, tournamentAdmins } = await import("../server/db/repo.js");
 const { computeStats } = await import("../server/services/stats.js");
-const { buildSingleElimination } = await import("../server/services/schedule.js");
+const { buildGroupStage, buildKnockoutFromOrdered, buildSingleElimination } = await import(
+  "../server/services/schedule.js"
+);
 
 test("boot migration adds the gender column without losing legacy data", () => {
   const cols = (db.prepare("PRAGMA table_info(players)").all() as { name: string }[]).map((c) => c.name);
@@ -140,6 +142,59 @@ test("co-admins may manage roster players of their tournament, and nothing else"
   tournaments.remove(t.id);
   players.remove(onRoster.id);
   players.remove(offRoster.id);
+});
+
+test("world cup format: group games produce per-group standings and feed a knockout", () => {
+  const t = tournaments.create({ name: "Mini Mundial", passwordHash: "hash", adminId });
+
+  const ids = Array.from({ length: 8 }, (_, i) => players.create({ ...playerInput, name: `WC${i + 1}` }, adminId).id);
+  for (const id of ids) tournaments.addToRoster(t.id, id);
+  teams.replaceAll(t.id, [
+    { name: "T1", playerIds: [ids[0], ids[1]] },
+    { name: "T2", playerIds: [ids[2], ids[3]] },
+    { name: "T3", playerIds: [ids[4], ids[5]] },
+    { name: "T4", playerIds: [ids[6], ids[7]] },
+  ]);
+  const teamRows = teams.byTournament(t.id);
+
+  const { groups, matches } = buildGroupStage(teamRows.map((tm) => tm.id), 2);
+  assert.equal(groups.length, 2);
+  games.replaceSchedule(t.id, matches);
+
+  const created = games.byTournament(t.id);
+  assert.equal(created.length, 2, "one game per group of two");
+  assert.ok(created.every((g) => g.stage === "group" && g.group_name));
+
+  // Team A of each game wins its group.
+  for (const g of created) {
+    games.setResult(g.id, { score_a: 15, score_b: 10, status: "final", playerPoints: {} });
+  }
+
+  const stats = computeStats(t.id);
+  assert.equal(stats.groups.length, 2);
+  for (const g of stats.groups) {
+    assert.equal(g.standings.length, 2);
+    assert.equal(g.standings[0].points, 2, `group ${g.name} winner has 2 points`);
+    assert.equal(g.standings[1].points, 0);
+  }
+
+  // Top 1 per group into the knockout, appended after the group games.
+  const qualifiers = stats.groups.map((g) => g.standings[0].teamId);
+  const roundOffset = Math.max(...created.map((g) => g.round));
+  games.appendBracket(t.id, buildKnockoutFromOrdered(qualifiers, roundOffset));
+
+  const all = games.byTournament(t.id);
+  const knockout = all.filter((g) => g.stage === "knockout");
+  assert.equal(knockout.length, 1, "two qualifiers -> single final");
+  assert.ok(knockout[0].round > roundOffset);
+  assert.deepEqual(
+    [knockout[0].team_a_id, knockout[0].team_b_id].sort(),
+    [...qualifiers].sort(),
+    "the final is played by the two group winners"
+  );
+  assert.equal(all.filter((g) => g.stage === "group").length, 2, "group games are kept");
+
+  tournaments.remove(t.id);
 });
 
 test("finishing a bracket game feeds the winner into the next round", () => {

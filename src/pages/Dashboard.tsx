@@ -407,6 +407,8 @@ export default function Dashboard() {
   const [busy, setBusy] = useState(false);
   const [seeding, setSeeding] = useState<"rating" | "random">("rating");
   const [repCount, setRepCount] = useState("2");
+  const [teamsPerGroup, setTeamsPerGroup] = useState("4");
+  const [advancePerGroup, setAdvancePerGroup] = useState("2");
   const [view, setView] = useState<"list" | "bracket">("list");
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
@@ -483,6 +485,47 @@ export default function Dashboard() {
     }
   };
 
+  const groupStage = async () => {
+    if (!currentId) return;
+    if (games.length > 0 && !(await confirm({ message: t("dash.confirmReplaceGroups"), danger: true }))) return;
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await api.generateGroupStage(currentId, { teamsPerGroup: Number(teamsPerGroup) || 4 });
+      setInfo(t("dash.info.groups", { g: res.groupsCreated, n: res.gamesCreated }));
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const groupKnockout = async () => {
+    if (!currentId) return;
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await api.generateGroupKnockout(currentId, { advancePerGroup: Number(advancePerGroup) || 2 });
+      setInfo(t("dash.info.groupKnockout", { q: res.qualified, n: res.gamesCreated }));
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const groupInfo = useMemo(() => {
+    const groupGames = games.filter((g) => g.stage === "group");
+    const hasGroups = groupGames.length > 0;
+    const groupsComplete = hasGroups && groupGames.every((g) => g.status === "final");
+    const hasKnockout = games.some((g) => g.stage === "knockout");
+    return { hasGroups, groupsComplete, hasKnockout };
+  }, [games]);
+
   const knockoutInfo = useMemo(() => {
     const ko = games.filter((g) => g.stage === "knockout");
     const hasKnockout = ko.length > 0;
@@ -540,6 +583,51 @@ export default function Dashboard() {
             {adding ? t("common.close") : t("dash.addMatch")}
           </button>
           {!locked && <span className="muted">{t("dash.lockTip")}</span>}
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="card toolbar">
+          <span className="entry-team-name">{t("dash.worldCup")}</span>
+          <label className="inline-count">
+            {t("dash.teamsPerGroup")}
+            <select value={teamsPerGroup} onChange={(e) => setTeamsPerGroup(e.target.value)}>
+              {[2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="btn btn-primary" onClick={groupStage} disabled={busy || teams.length < 4}>
+            {t("dash.createGroups")}
+          </button>
+          {teams.length < 4 && <span className="muted">{t("dash.worldCupMinTeams")}</span>}
+          {groupInfo.hasGroups && !groupInfo.hasKnockout && (
+            <>
+              <label className="inline-count">
+                {t("dash.advancePerGroup")}
+                <select value={advancePerGroup} onChange={(e) => setAdvancePerGroup(e.target.value)}>
+                  {[1, 2, 3, 4].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className="btn btn-success"
+                onClick={groupKnockout}
+                disabled={busy || !groupInfo.groupsComplete}
+              >
+                {t("dash.createGroupKnockout")}
+              </button>
+              {!groupInfo.groupsComplete && <span className="muted">{t("dash.groupsFinishFirst")}</span>}
+            </>
+          )}
+          {groupInfo.hasGroups && groupInfo.hasKnockout && (
+            <span className="muted">{t("dash.knockoutCreated")}</span>
+          )}
         </div>
       )}
 

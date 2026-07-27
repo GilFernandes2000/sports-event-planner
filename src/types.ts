@@ -114,6 +114,7 @@ export interface Game {
   score_b: number | null;
   status: "scheduled" | "final";
   played_at: string | null;
+  group_name: string | null;
   teamA: GameSide;
   teamB: GameSide;
 }
@@ -156,8 +157,14 @@ export interface Award {
   detail?: string;
 }
 
+export interface GroupStandings {
+  name: string;
+  standings: TeamStanding[];
+}
+
 export interface StatsResponse {
   standings: TeamStanding[];
+  groups: GroupStandings[];
   players: PlayerLeader[];
   highlights: {
     topScorer: PlayerLeader | null;

@@ -468,18 +468,27 @@ export const games = {
   get(id: number): Game | undefined {
     return db.prepare("SELECT * FROM games WHERE id = ?").get(id) as Game | undefined;
   },
-  /** Replace all games in a tournament with a generated round-robin. */
+  /** Replace all games in a tournament with a generated schedule (round-robin or group stage). */
   replaceSchedule(
     tournamentId: number,
-    matches: { round: number; label: string; team_a_id: number; team_b_id: number }[]
+    matches: {
+      round: number;
+      label: string;
+      team_a_id: number;
+      team_b_id: number;
+      stage?: string;
+      group_name?: string | null;
+    }[]
   ): void {
     const tx = db.transaction((tid: number, rows: typeof matches) => {
       db.prepare("DELETE FROM games WHERE tournament_id = ?").run(tid);
       const insert = db.prepare(
-        `INSERT INTO games (tournament_id, label, round, stage, team_a_id, team_b_id, status)
-         VALUES (?, ?, ?, 'round_robin', ?, ?, 'scheduled')`
+        `INSERT INTO games (tournament_id, label, round, stage, team_a_id, team_b_id, status, group_name)
+         VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?)`
       );
-      for (const m of rows) insert.run(tid, m.label, m.round, m.team_a_id, m.team_b_id);
+      for (const m of rows) {
+        insert.run(tid, m.label, m.round, m.stage ?? "round_robin", m.team_a_id, m.team_b_id, m.group_name ?? null);
+      }
     });
     tx(tournamentId, matches);
   },
