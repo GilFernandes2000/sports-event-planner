@@ -2051,8 +2051,17 @@ span.tournament-pick {
     display: none !important;
   }
 
+  /* No page margin: a browser @page margin leaves blank, uncolorable paper around
+     the content, which is what showed as a white border. Bleed the background to
+     the physical edge instead and use .report-page's own padding for spacing. */
   @page {
-    margin: 14mm;
+    margin: 0;
+  }
+  .content {
+    padding: 0;
+  }
+  .report-page {
+    padding: 14mm 12mm;
   }
 
   /* Ancestors (.content/.app/body) wrap .report-page with their own padding, so they
