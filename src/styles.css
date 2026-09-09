@@ -1715,11 +1715,42 @@ span.tournament-pick {
 }
 
 /* ---- Tournament report (print) ---- */
-.report-meta {
-  margin: 0 0 14px;
-}
 .report-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-bottom: 16px;
+}
+.report-header {
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.16), rgba(20, 33, 61, 0.9));
+}
+.report-header h1 {
+  margin: 0 0 4px;
+}
+.report-header .report-meta {
+  margin: 0;
+}
+.report-header .report-generated {
+  margin: 6px 0 0;
+}
+.report-page .champion-banner {
+  justify-content: center;
+  text-align: center;
+  font-size: 19px;
+  padding: 18px;
+}
+.report-page .champion-trophy {
+  font-size: 30px;
+}
+.report-page h2 {
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 6px;
 }
 .bracket-report {
   margin-bottom: 14px;
@@ -1763,33 +1794,52 @@ span.tournament-pick {
     margin: 14mm;
   }
 
+  /* Printer-friendly mode: white background, dark text, orange accents only (saves ink). */
   body,
   .app,
   .content {
     background: #fff;
   }
-  .report-page {
+  .report-page:not(.report-color) {
     background: #fff;
     color: #111827;
   }
-  .report-page .card,
-  .report-page .champion-banner,
-  .report-page .group-card,
-  .report-page .award-card,
-  .report-page .highlight {
+  .report-page:not(.report-color) .card,
+  .report-page:not(.report-color) .champion-banner,
+  .report-page:not(.report-color) .group-card,
+  .report-page:not(.report-color) .award-card,
+  .report-page:not(.report-color) .highlight,
+  .report-page:not(.report-color) .report-header {
     background: #fff;
     color: #111827;
     border: 1px solid #f97316;
     box-shadow: none;
   }
-  .report-page .muted {
+  .report-page:not(.report-color) .muted {
     color: #4b5563;
   }
-  .report-page .table th {
+  .report-page:not(.report-color) .table th {
     background: #fff;
     color: #111827;
     border-bottom: 2px solid #f97316;
   }
+  .report-page:not(.report-color) h1,
+  .report-page:not(.report-color) h2,
+  .report-page:not(.report-color) h3 {
+    color: #111827;
+  }
+  .report-page:not(.report-color) .bracket-report-game {
+    border-bottom-color: #e5e7eb;
+  }
+
+  /* Full color mode: keep the app's dark navy/orange branding, ask the browser to preserve it. */
+  .report-page.report-color,
+  .report-page.report-color * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Both modes: sensible page-flow and layout for a fixed print width. */
   .report-page .table-wrap {
     overflow-x: visible;
     border: none;
@@ -1805,9 +1855,5 @@ span.tournament-pick {
   .report-page h2,
   .report-page h3 {
     break-after: avoid;
-    color: #111827;
-  }
-  .report-page .bracket-report-game {
-    border-bottom-color: #e5e7eb;
   }
 }

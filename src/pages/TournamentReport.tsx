@@ -74,6 +74,7 @@ export default function TournamentReport() {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"print" | "color">("print");
 
   const load = useCallback(() => {
     if (!currentId) return;
@@ -109,16 +110,26 @@ export default function TournamentReport() {
   const generatedOn = new Date().toLocaleDateString(lang);
 
   return (
-    <div className="page report-page">
+    <div className={`page report-page ${mode === "color" ? "report-color" : ""}`}>
       <div className="report-actions no-print">
+        <div className="view-toggle">
+          <button className={`seg ${mode === "print" ? "active" : ""}`} onClick={() => setMode("print")}>
+            {t("report.modePrint")}
+          </button>
+          <button className={`seg ${mode === "color" ? "active" : ""}`} onClick={() => setMode("color")}>
+            {t("report.modeColor")}
+          </button>
+        </div>
         <button className="btn btn-primary" onClick={() => window.print()}>
           {t("report.print")}
         </button>
       </div>
 
-      <h1>{current?.name ?? t("report.title")}</h1>
-      {meta.length > 0 && <p className="muted report-meta">{meta.join(" · ")}</p>}
-      <p className="muted tiny">{t("report.generatedOn", { date: generatedOn })}</p>
+      <div className="report-header">
+        <h1>{current?.name ?? t("report.title")}</h1>
+        {meta.length > 0 && <p className="muted report-meta">{meta.join(" · ")}</p>}
+        <p className="muted tiny report-generated">{t("report.generatedOn", { date: generatedOn })}</p>
+      </div>
 
       {champion && (
         <div className="champion-banner">
