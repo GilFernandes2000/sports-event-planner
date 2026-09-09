@@ -15,6 +15,7 @@ import Dashboard from "./pages/Dashboard";
 import Roster from "./pages/Roster";
 import Tournaments from "./pages/Tournaments";
 import Display from "./pages/Display";
+import TournamentReport from "./pages/TournamentReport";
 
 function LanguageSwitcherNav() {
   return <LanguageSwitcher />;
@@ -112,7 +113,7 @@ function AppShell() {
 
   return (
     <div className="app">
-      <div className="topnav">
+      <div className="topnav no-print">
         <header className="topbar">
           <div className="brand">
             <span className="ball" aria-hidden>
@@ -143,6 +144,7 @@ function AppShell() {
       <main className="content">
         <Routes>
           <Route path="/standings" element={<Stats />} />
+          <Route path="/report" element={<TournamentReport />} />
           <Route path="/games" element={<Dashboard />} />
           <Route path="/teams" element={<Teams />} />
           <Route path="/roster" element={<Roster />} />
@@ -153,7 +155,7 @@ function AppShell() {
         </Routes>
       </main>
 
-      <footer className="footer muted">{t("footer")}</footer>
+      <footer className="footer muted no-print">{t("footer")}</footer>
     </div>
   );
 }
