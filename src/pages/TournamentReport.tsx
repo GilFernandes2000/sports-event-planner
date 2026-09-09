@@ -7,15 +7,39 @@ import { sideDisplayName } from "../gameLabels";
 import { computeDepths, stageBadge } from "../bracketDepth";
 import NoTournament from "../components/NoTournament";
 import { PlayerName } from "../components/PlayerAvatar";
-import type { Game, StatsResponse, Tournament } from "../types";
+import type { Game, StatsResponse, TeamStanding } from "../types";
 
-function formatTournamentMeta(tournament: Tournament | null): string[] {
-  if (!tournament) return [];
-  return [
-    tournament.event_date,
-    tournament.location,
-    `${tournament.team_size}v${tournament.team_size}`,
-  ].filter(Boolean) as string[];
+const AWARD_ICONS: Record<string, string> = {
+  mvp: "⭐",
+  bestShooter: "🎯",
+  leadingTeam: "🛡️",
+  clutchWin: "🔥",
+  shootout: "💥",
+};
+
+function awardIcon(key: string): string {
+  return AWARD_ICONS[key] ?? "🏅";
+}
+
+function rankClass(i: number): string {
+  return i < 3 ? ` rpt-rank-${i + 1}` : "";
+}
+
+function PodiumSlot({ place, standing }: { place: 1 | 2 | 3; standing: TeamStanding }) {
+  const { t } = useI18n();
+  const slotClass = place === 1 ? "first" : place === 2 ? "second" : "third";
+  return (
+    <div className={`rpt-podium-slot ${slotClass}`}>
+      {place === 1 && (
+        <span className="rpt-podium-trophy" aria-hidden>
+          🏆
+        </span>
+      )}
+      <div className="rpt-podium-name">{standing.name}</div>
+      <div className="rpt-podium-block">{place}</div>
+      <div className="rpt-podium-record">{t("stats.recordFull", { w: standing.wins, l: standing.losses, tie: standing.ties })}</div>
+    </div>
+  );
 }
 
 function BracketReportSection({ games }: { games: Game[] }) {
@@ -37,25 +61,27 @@ function BracketReportSection({ games }: { games: Game[] }) {
 
   return (
     <>
-      <h2>{t("report.bracket")}</h2>
-      <div className="bracket-report">
+      <div className="rpt-section-title">
+        <span aria-hidden>🏀</span> {t("report.bracket")}
+      </div>
+      <div className="rpt-bracket">
         {columns.map(([d, list]) => (
-          <div className="bracket-report-round" key={d}>
-            <h3>{t("round.n", { n: d + 1 })}</h3>
+          <div key={d}>
+            <div className="rpt-bracket-round-title">{t("round.n", { n: d + 1 })}</div>
             {list.map((g) => {
               const winnerA = g.status === "final" && (g.score_a ?? 0) > (g.score_b ?? 0);
               const winnerB = g.status === "final" && (g.score_b ?? 0) > (g.score_a ?? 0);
               const badge = stageBadge(g.stage, t);
               return (
-                <div className="bracket-report-game" key={g.id}>
-                  <div className={`bracket-report-side ${winnerA ? "win" : ""}`}>
+                <div className="rpt-match" key={g.id}>
+                  <div className="rpt-match-label">{badge ?? (g.label ?? t("game.gameNum", { id: g.id }))}</div>
+                  <div className={`rpt-match-row ${winnerA ? "win" : ""}`}>
                     <span>{sideDisplayName(g, "A", games, t)}</span>
-                    <span>{g.teamA.placeholder ? "" : g.score_a ?? ""}</span>
+                    <span className="rpt-match-score">{g.teamA.placeholder ? "" : g.score_a ?? ""}</span>
                   </div>
-                  <span className="muted tiny">{badge ?? (g.label ?? t("game.gameNum", { id: g.id }))}</span>
-                  <div className={`bracket-report-side ${winnerB ? "win" : ""}`}>
+                  <div className={`rpt-match-row ${winnerB ? "win" : ""}`}>
                     <span>{sideDisplayName(g, "B", games, t)}</span>
-                    <span>{g.teamB.placeholder ? "" : g.score_b ?? ""}</span>
+                    <span className="rpt-match-score">{g.teamB.placeholder ? "" : g.score_b ?? ""}</span>
                   </div>
                 </div>
               );
@@ -106,8 +132,8 @@ export default function TournamentReport() {
   const hasGames = highlights.totalGamesPlayed > 0;
   const tournamentDone = games.length > 0 && games.every((g) => g.status === "final");
   const champion = tournamentDone && standings.length > 0 ? standings[0] : null;
-  const meta = formatTournamentMeta(current);
   const generatedOn = new Date().toLocaleDateString(lang);
+  const maxPoints = players[0]?.totalPoints ?? 0;
 
   return (
     <div className={`page report-page ${mode === "color" ? "report-color" : ""}`}>
@@ -125,24 +151,38 @@ export default function TournamentReport() {
         </button>
       </div>
 
-      <div className="report-header">
+      <div className="rpt-hero">
+        <span className="rpt-hero-ball" aria-hidden>🏀</span>
         <h1>{current?.name ?? t("report.title")}</h1>
-        {meta.length > 0 && <p className="muted report-meta">{meta.join(" · ")}</p>}
-        <p className="muted tiny report-generated">{t("report.generatedOn", { date: generatedOn })}</p>
+        <div className="rpt-hero-meta">
+          {current?.event_date && <span className="rpt-hero-pill">📅 {current.event_date}</span>}
+          {current?.location && <span className="rpt-hero-pill">📍 {current.location}</span>}
+          {current && (
+            <span className="rpt-hero-pill">
+              🤝 {current.team_size}v{current.team_size}
+            </span>
+          )}
+        </div>
+        <p className="muted tiny rpt-hero-generated">{t("report.generatedOn", { date: generatedOn })}</p>
       </div>
 
       {champion && (
-        <div className="champion-banner">
-          <span className="champion-trophy" aria-hidden>🏆</span>
-          {t("stats.champion", { name: champion.name })}
+        <div className="rpt-podium-wrap">
+          <div className="rpt-podium-caption">{t("stats.champion", { name: champion.name })}</div>
+          <div className="rpt-podium">
+            <PodiumSlot place={1} standing={standings[0]} />
+            {standings[1] && <PodiumSlot place={2} standing={standings[1]} />}
+            {standings[2] && <PodiumSlot place={3} standing={standings[2]} />}
+          </div>
         </div>
       )}
 
       {hasGames && (
-        <div className="highlights">
-          <div className="card highlight">
-            <div className="muted">{t("stats.topScorer")}</div>
-            <div className="big">
+        <div className="rpt-stats">
+          <div className="rpt-panel rpt-stat-tile">
+            <div className="rpt-stat-icon" aria-hidden>🎯</div>
+            <div className="muted tiny">{t("stats.topScorer")}</div>
+            <div className="rpt-stat-value">
               {highlights.topScorer ? (
                 <PlayerName
                   id={highlights.topScorer.playerId}
@@ -153,12 +193,13 @@ export default function TournamentReport() {
                 "-"
               )}
             </div>
-            <div className="muted">{highlights.topScorer ? t("stats.pts", { n: highlights.topScorer.totalPoints }) : ""}</div>
+            <div className="muted tiny">{highlights.topScorer ? t("stats.pts", { n: highlights.topScorer.totalPoints }) : ""}</div>
           </div>
-          <div className="card highlight">
-            <div className="muted">{t("stats.leadingTeam")}</div>
-            <div className="big">{highlights.bestTeam?.name ?? "-"}</div>
-            <div className="muted">
+          <div className="rpt-panel rpt-stat-tile">
+            <div className="rpt-stat-icon" aria-hidden>🛡️</div>
+            <div className="muted tiny">{t("stats.leadingTeam")}</div>
+            <div className="rpt-stat-value">{highlights.bestTeam?.name ?? "-"}</div>
+            <div className="muted tiny">
               {highlights.bestTeam
                 ? t("stats.recordFull", {
                     w: highlights.bestTeam.wins,
@@ -168,29 +209,35 @@ export default function TournamentReport() {
                 : ""}
             </div>
           </div>
-          <div className="card highlight">
-            <div className="muted">{t("stats.gamesPlayed")}</div>
-            <div className="big">{highlights.totalGamesPlayed}</div>
-            <div className="muted">{t("stats.totalPts", { n: highlights.totalPointsScored })}</div>
+          <div className="rpt-panel rpt-stat-tile">
+            <div className="rpt-stat-icon" aria-hidden>🏀</div>
+            <div className="muted tiny">{t("stats.gamesPlayed")}</div>
+            <div className="rpt-stat-value">{highlights.totalGamesPlayed}</div>
+            <div className="muted tiny">{t("stats.totalPts", { n: highlights.totalPointsScored })}</div>
           </div>
         </div>
       )}
 
       {highlights.awards.length > 0 && (
         <>
-          <h2>{t("stats.awards")}</h2>
-          <div className="awards-grid">
+          <div className="rpt-section-title">
+            <span aria-hidden>🏅</span> {t("stats.awards")}
+          </div>
+          <div className="rpt-awards">
             {highlights.awards.map((a) => (
-              <div className="card award-card" key={a.key}>
-                <div className="muted sm">{awardLabel(t, a.key)}</div>
-                <div className="award-name">
-                  {a.playerId ? (
-                    <PlayerName id={a.playerId} name={a.playerName ?? "-"} hasPhoto={0} />
-                  ) : (
-                    a.teamName ?? "-"
-                  )}
+              <div className="rpt-panel rpt-award" key={a.key}>
+                <span className="rpt-award-icon" aria-hidden>{awardIcon(a.key)}</span>
+                <div>
+                  <div className="muted tiny">{awardLabel(t, a.key)}</div>
+                  <div className="rpt-award-name">
+                    {a.playerId ? (
+                      <PlayerName id={a.playerId} name={a.playerName ?? "-"} hasPhoto={0} />
+                    ) : (
+                      a.teamName ?? "-"
+                    )}
+                  </div>
+                  <div className="muted tiny">{awardDetail(t, a)}</div>
                 </div>
-                <div className="muted tiny">{awardDetail(t, a)}</div>
               </div>
             ))}
           </div>
@@ -199,13 +246,15 @@ export default function TournamentReport() {
 
       {stats.groups.length > 0 && (
         <>
-          <h2>{t("stats.groupStage")}</h2>
-          <div className="groups-grid">
+          <div className="rpt-section-title">
+            <span aria-hidden>👥</span> {t("stats.groupStage")}
+          </div>
+          <div className="rpt-groups">
             {stats.groups.map((g) => (
-              <div className="card group-card" key={g.name}>
-                <div className="group-title">{t("stats.group", { name: g.name })}</div>
-                <div className="table-wrap">
-                  <table className="table group-table">
+              <div className="rpt-panel rpt-group" key={g.name}>
+                <div className="rpt-group-title">{t("stats.group", { name: g.name })}</div>
+                <div className="rpt-table-wrap">
+                  <table className="rpt-table">
                     <thead>
                       <tr>
                         <th className="left">{t("stats.h.team")}</th>
@@ -220,8 +269,10 @@ export default function TournamentReport() {
                       {g.standings.map((s, i) => (
                         <tr key={s.teamId}>
                           <td className="left">
-                            <span className={`rank${i < 3 ? ` rank-${i + 1}` : ""}`}>{i + 1}</span>
-                            <span className="team-name-cell">{s.name}</span>
+                            <div className="rpt-table-team">
+                              <span className={`rpt-rank${rankClass(i)}`}>{i + 1}</span>
+                              <span>{s.name}</span>
+                            </div>
                           </td>
                           <td>{s.played}</td>
                           <td>{s.wins}</td>
@@ -245,9 +296,11 @@ export default function TournamentReport() {
 
       {standings.length > 0 && (
         <>
-          <h2>{t("stats.teamStandings")}</h2>
-          <div className="table-wrap">
-            <table className="table">
+          <div className="rpt-section-title">
+            <span aria-hidden>📊</span> {t("stats.teamStandings")}
+          </div>
+          <div className="rpt-panel rpt-table-wrap">
+            <table className="rpt-table">
               <thead>
                 <tr>
                   <th className="left">{t("stats.h.team")}</th>
@@ -265,16 +318,18 @@ export default function TournamentReport() {
                 {standings.map((s, i) => (
                   <tr key={s.teamId}>
                     <td className="left">
-                      <span className={`rank${i < 3 ? ` rank-${i + 1}` : ""}`}>{i + 1}</span>
-                      <div>
-                        <div className="team-name-cell">{s.name}</div>
-                        <div className="muted tiny member-names">
-                          {s.members.map((m, mi) => (
-                            <span key={m.id} className="member-name-item">
-                              {mi > 0 && " · "}
-                              <PlayerName id={m.id} name={m.name} hasPhoto={m.has_photo} size="sm" />
-                            </span>
-                          ))}
+                      <div className="rpt-table-team">
+                        <span className={`rpt-rank${rankClass(i)}`}>{i + 1}</span>
+                        <div>
+                          <div>{s.name}</div>
+                          <div className="muted tiny member-names">
+                            {s.members.map((m, mi) => (
+                              <span key={m.id} className="member-name-item">
+                                {mi > 0 && " · "}
+                                <PlayerName id={m.id} name={m.name} hasPhoto={m.has_photo} size="sm" />
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -302,9 +357,11 @@ export default function TournamentReport() {
 
       {players.length > 0 && (
         <>
-          <h2>{t("stats.playerLeaderboard")}</h2>
-          <div className="table-wrap">
-            <table className="table">
+          <div className="rpt-section-title">
+            <span aria-hidden>🔥</span> {t("stats.playerLeaderboard")}
+          </div>
+          <div className="rpt-panel rpt-table-wrap">
+            <table className="rpt-table">
               <thead>
                 <tr>
                   <th className="left">{t("stats.h.player")}</th>
@@ -317,15 +374,25 @@ export default function TournamentReport() {
                 {players.map((p, i) => (
                   <tr key={p.playerId}>
                     <td className="left">
-                      <span className={`rank${i < 3 ? ` rank-${i + 1}` : ""}`}>{i + 1}</span>
-                      <div>
-                        <PlayerName id={p.playerId} name={p.name} hasPhoto={p.has_photo} />
-                        <div className="muted tiny">{p.teamName ?? ""}</div>
+                      <div className="rpt-table-team">
+                        <span className={`rpt-rank${rankClass(i)}`}>{i + 1}</span>
+                        <div>
+                          <PlayerName id={p.playerId} name={p.name} hasPhoto={p.has_photo} />
+                          <div className="muted tiny">{p.teamName ?? ""}</div>
+                        </div>
                       </div>
                     </td>
                     <td>{p.gamesPlayed}</td>
                     <td>
-                      <strong>{p.totalPoints}</strong>
+                      <div>
+                        <strong>{p.totalPoints}</strong>
+                        <div className="rpt-bar-track">
+                          <div
+                            className="rpt-bar-fill"
+                            style={{ width: `${maxPoints > 0 ? (p.totalPoints / maxPoints) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
                     </td>
                     <td>{p.pointsPerGame}</td>
                   </tr>
@@ -335,6 +402,8 @@ export default function TournamentReport() {
           </div>
         </>
       )}
+
+      <p className="rpt-footer muted tiny">🏀 {t("footer")}</p>
     </div>
   );
 }
