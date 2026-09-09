@@ -2055,16 +2055,31 @@ span.tournament-pick {
     margin: 14mm;
   }
 
-  body,
-  .app,
-  .content {
+  /* Ancestors (.content/.app/body) wrap .report-page with their own padding, so they
+     need to match its background too, or a pale/dark frame shows around the report. */
+  body:has(.report-page:not(.report-color)),
+  .app:has(.report-page:not(.report-color)),
+  .content:has(.report-page:not(.report-color)) {
     background: #fff;
+  }
+  body:has(.report-page.report-color),
+  .app:has(.report-page.report-color),
+  .content:has(.report-page.report-color) {
+    background: #0f172a;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   /* Printer-friendly mode: white background, dark text, orange accents only (saves ink). */
   .report-page:not(.report-color) {
     background: #fff;
     color: #111827;
+  }
+  /* Full color mode: the page itself must carry the dark background explicitly —
+     it does not inherit one, since printer-friendly mode forces ancestors white. */
+  .report-page.report-color {
+    background: #0f172a;
+    color: #e8edf7;
   }
   .report-page:not(.report-color) .rpt-hero,
   .report-page:not(.report-color) .rpt-panel,
