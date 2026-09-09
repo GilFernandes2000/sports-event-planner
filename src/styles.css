@@ -1713,3 +1713,101 @@ span.tournament-pick {
 .group-table td {
   font-size: 13px;
 }
+
+/* ---- Tournament report (print) ---- */
+.report-meta {
+  margin: 0 0 14px;
+}
+.report-actions {
+  margin-bottom: 16px;
+}
+.bracket-report {
+  margin-bottom: 14px;
+}
+.bracket-report-round {
+  margin-bottom: 14px;
+}
+.bracket-report-round h3 {
+  font-size: 15px;
+  margin: 0 0 6px;
+}
+.bracket-report-game {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.bracket-report-game:last-child {
+  border-bottom: none;
+}
+.bracket-report-side {
+  display: flex;
+  justify-content: space-between;
+  flex: 1;
+  gap: 8px;
+}
+.bracket-report-side.win {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+
+  body,
+  .app,
+  .content {
+    background: #fff;
+  }
+  .report-page {
+    background: #fff;
+    color: #111827;
+  }
+  .report-page .card,
+  .report-page .champion-banner,
+  .report-page .group-card,
+  .report-page .award-card,
+  .report-page .highlight {
+    background: #fff;
+    color: #111827;
+    border: 1px solid #f97316;
+    box-shadow: none;
+  }
+  .report-page .muted {
+    color: #4b5563;
+  }
+  .report-page .table th {
+    background: #fff;
+    color: #111827;
+    border-bottom: 2px solid #f97316;
+  }
+  .report-page .table-wrap {
+    overflow-x: visible;
+    border: none;
+  }
+  .report-page tr,
+  .report-page .card,
+  .report-page .group-card,
+  .report-page .award-card,
+  .report-page .bracket-report-round {
+    break-inside: avoid;
+  }
+  .report-page h1,
+  .report-page h2,
+  .report-page h3 {
+    break-after: avoid;
+    color: #111827;
+  }
+  .report-page .bracket-report-game {
+    border-bottom-color: #e5e7eb;
+  }
+}

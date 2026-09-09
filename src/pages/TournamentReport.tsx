@@ -1,17 +1,13 @@
-import { type CSSProperties, useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { useAdmin } from "../AdminContext";
 import { useTournament } from "../TournamentContext";
 import { useI18n } from "../i18n";
 import { awardDetail, awardLabel } from "../awardLabels";
 import { sideDisplayName } from "../gameLabels";
+import { computeDepths, stageBadge } from "../bracketDepth";
 import NoTournament from "../components/NoTournament";
 import { PlayerName } from "../components/PlayerAvatar";
-import { usePolling } from "../usePolling";
 import type { Game, StatsResponse, Tournament } from "../types";
-
-const POLL_MS = 10_000;
 
 function formatTournamentMeta(tournament: Tournament | null): string[] {
   if (!tournament) return [];
@@ -19,130 +15,61 @@ function formatTournamentMeta(tournament: Tournament | null): string[] {
     tournament.event_date,
     tournament.location,
     `${tournament.team_size}v${tournament.team_size}`,
-    `${tournament.game_duration_min} min`,
   ].filter(Boolean) as string[];
 }
 
-function GameDayPanel({
-  current,
-  stats,
-  games,
-  displayUrl,
-  isAdmin,
-}: {
-  current: Tournament | null;
-  stats: StatsResponse;
-  games: Game[];
-  displayUrl: string | null;
-  isAdmin: boolean;
-}) {
+function BracketReportSection({ games }: { games: Game[] }) {
   const { t } = useI18n();
-  const completed = stats.highlights.totalGamesPlayed;
-  const total = games.length;
-  const remaining = Math.max(total - completed, 0);
-  const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
-  const liveGame = games.find((g) => g.status === "scheduled" && (g.score_a !== null || g.score_b !== null));
-  const nextGame =
-    liveGame ??
-    games.find((g) => g.status !== "final" && g.teamA.id !== null && g.teamB.id !== null) ??
-    games.find((g) => g.status !== "final") ??
-    null;
-  const minPlayers = (current?.team_size ?? 2) * 2;
-  const playerCount = current?.counts.players ?? 0;
-  const teamCount = current?.counts.teams ?? 0;
+  const bracketGames = games.filter((g) => g.stage !== "group");
+  if (bracketGames.length === 0) return null;
 
-  let status = t("gameday.status.finished");
-  let actionTo = "/standings";
-  let actionLabel = t("nav.standings");
-  if (playerCount < minPlayers) {
-    status = t("gameday.status.roster", { n: playerCount, min: minPlayers });
-    actionTo = "/enroll";
-    actionLabel = t("nav.enroll");
-  } else if (teamCount < 2) {
-    status = t("gameday.status.teams");
-    actionTo = "/teams";
-    actionLabel = t("nav.teams");
-  } else if (total === 0) {
-    status = t("gameday.status.schedule");
-    actionTo = "/games";
-    actionLabel = t("nav.games");
-  } else if (remaining > 0) {
-    status = t("gameday.status.play", { n: remaining });
-    actionTo = "/games";
-    actionLabel = t("nav.games");
+  const depth = computeDepths(bracketGames);
+  const cols = new Map<number, Game[]>();
+  for (const g of bracketGames) {
+    const d = depth.get(g.id) ?? 0;
+    const arr = cols.get(d) ?? [];
+    arr.push(g);
+    cols.set(d, arr);
   }
-
-  const meta = formatTournamentMeta(current);
-  const nextLabel = nextGame ? nextGame.label ?? t("game.gameNum", { id: nextGame.id }) : t("gameday.noNext");
+  const columns = [...cols.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([d, list]) => [d, [...list].sort((x, y) => x.round - y.round || x.id - y.id)] as const);
 
   return (
-    <section className="gameday-panel">
-      <div className="gameday-hero">
-        <div>
-          <div className="eyebrow">{t("gameday.kicker")}</div>
-          <h2>{status}</h2>
-          {meta.length > 0 && <p className="muted">{meta.join(" · ")}</p>}
-        </div>
-        <div
-          className="progress-ring"
-          style={{ "--progress": `${progress}%` } as CSSProperties}
-          aria-label={t("gameday.progress", { n: progress })}
-        >
-          <span>{progress}%</span>
-        </div>
+    <>
+      <h2>{t("report.bracket")}</h2>
+      <div className="bracket-report">
+        {columns.map(([d, list]) => (
+          <div className="bracket-report-round" key={d}>
+            <h3>{t("round.n", { n: d + 1 })}</h3>
+            {list.map((g) => {
+              const winnerA = g.status === "final" && (g.score_a ?? 0) > (g.score_b ?? 0);
+              const winnerB = g.status === "final" && (g.score_b ?? 0) > (g.score_a ?? 0);
+              const badge = stageBadge(g.stage, t);
+              return (
+                <div className="bracket-report-game" key={g.id}>
+                  <div className={`bracket-report-side ${winnerA ? "win" : ""}`}>
+                    <span>{sideDisplayName(g, "A", games, t)}</span>
+                    <span>{g.teamA.placeholder ? "" : g.score_a ?? ""}</span>
+                  </div>
+                  <span className="muted tiny">{badge ?? (g.label ?? t("game.gameNum", { id: g.id }))}</span>
+                  <div className={`bracket-report-side ${winnerB ? "win" : ""}`}>
+                    <span>{sideDisplayName(g, "B", games, t)}</span>
+                    <span>{g.teamB.placeholder ? "" : g.score_b ?? ""}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
-
-      <div className="gameday-strip">
-        <div>
-          <span className="metric-label">{t("gameday.players")}</span>
-          <strong>{playerCount}</strong>
-        </div>
-        <div>
-          <span className="metric-label">{t("gameday.teams")}</span>
-          <strong>{teamCount}</strong>
-        </div>
-        <div>
-          <span className="metric-label">{t("gameday.games")}</span>
-          <strong>
-            {completed}/{total}
-          </strong>
-        </div>
-      </div>
-
-      <div className="next-match">
-        <div>
-          <span className="metric-label">{liveGame ? t("gameday.live") : t("display.nextGame")}</span>
-          <strong>{nextLabel}</strong>
-          {nextGame && (
-            <p className="muted sm">
-              {sideDisplayName(nextGame, "A", games, t)} {t("common.vs")} {sideDisplayName(nextGame, "B", games, t)}
-            </p>
-          )}
-        </div>
-        <div className="quick-actions">
-          <Link className="btn btn-primary sm" to={actionTo}>
-            {actionLabel}
-          </Link>
-          {isAdmin && (
-            <Link className="btn sm" to="/teams">
-              {t("nav.teams")}
-            </Link>
-          )}
-          {displayUrl && (
-            <a className="btn btn-ghost sm" href={displayUrl} target="_blank" rel="noreferrer">
-              {t("tournaments.openDisplay")}
-            </a>
-          )}
-        </div>
-      </div>
-    </section>
+    </>
   );
 }
 
-export default function Stats() {
+export default function TournamentReport() {
   const { currentId, current } = useTournament();
-  const { isAdmin } = useAdmin();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,10 +96,8 @@ export default function Stats() {
     load();
   }, [currentId, load]);
 
-  usePolling(load, POLL_MS, currentId !== null);
-
   if (!currentId) return <div className="page"><NoTournament /></div>;
-  if (loading && !stats) return <div className="page">{t("stats.loading")}</div>;
+  if (loading) return <div className="page">{t("stats.loading")}</div>;
   if (error && !stats) return <div className="page"><div className="banner error">{error}</div></div>;
   if (!stats) return null;
 
@@ -180,34 +105,26 @@ export default function Stats() {
   const hasGames = highlights.totalGamesPlayed > 0;
   const tournamentDone = games.length > 0 && games.every((g) => g.status === "final");
   const champion = tournamentDone && standings.length > 0 ? standings[0] : null;
-  const displayUrl =
-    current?.share_slug ? `${window.location.origin}/display/${current.share_slug}` : null;
+  const meta = formatTournamentMeta(current);
+  const generatedOn = new Date().toLocaleDateString(lang);
 
   return (
-    <div className="page">
-      <h1>{current?.name ?? t("nav.standings")}</h1>
+    <div className="page report-page">
+      <div className="report-actions no-print">
+        <button className="btn btn-primary" onClick={() => window.print()}>
+          {t("report.print")}
+        </button>
+      </div>
+
+      <h1>{current?.name ?? t("report.title")}</h1>
+      {meta.length > 0 && <p className="muted report-meta">{meta.join(" · ")}</p>}
+      <p className="muted tiny">{t("report.generatedOn", { date: generatedOn })}</p>
+
       {champion && (
         <div className="champion-banner">
           <span className="champion-trophy" aria-hidden>🏆</span>
           {t("stats.champion", { name: champion.name })}
         </div>
-      )}
-      {displayUrl && (
-        <p className="muted sm">
-          {t("stats.publicView")}{" "}
-          <a href={displayUrl} target="_blank" rel="noreferrer">
-            {t("stats.openDisplay")}
-          </a>
-        </p>
-      )}
-      <p className="muted sm">
-        <Link to="/report">{t("report.export")}</Link>
-      </p>
-
-      <GameDayPanel current={current} stats={stats} games={games} displayUrl={displayUrl} isAdmin={isAdmin} />
-
-      {!hasGames && standings.length === 0 && (
-        <div className="empty">{t("stats.emptyNothing")}</div>
       )}
 
       {hasGames && (
@@ -341,9 +258,9 @@ export default function Stats() {
                       <div>
                         <div className="team-name-cell">{s.name}</div>
                         <div className="muted tiny member-names">
-                          {s.members.map((m, i) => (
+                          {s.members.map((m, mi) => (
                             <span key={m.id} className="member-name-item">
-                              {i > 0 && " · "}
+                              {mi > 0 && " · "}
                               <PlayerName id={m.id} name={m.name} hasPhoto={m.has_photo} size="sm" />
                             </span>
                           ))}
@@ -369,6 +286,8 @@ export default function Stats() {
           </div>
         </>
       )}
+
+      <BracketReportSection games={games} />
 
       {players.length > 0 && (
         <>

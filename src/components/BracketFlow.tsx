@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Game } from "../types";
 import { useI18n } from "../i18n";
 import { sideDisplayName } from "../gameLabels";
+import { computeDepths, stageBadge } from "../bracketDepth";
 
 interface Connector {
   id: string;
@@ -11,37 +12,6 @@ interface Connector {
   y2: number;
   kind: "winner" | "loser";
   live: boolean;
-}
-
-/**
- * Compute each game's column by its longest dependency chain (topological depth),
- * so "winner-of/loser-of" links always flow left -> right regardless of the stored
- * round number. This keeps the repechage and any manual wiring laid out correctly.
- */
-function computeDepths(games: Game[]): Map<number, number> {
-  const byId = new Map(games.map((g) => [g.id, g]));
-  const depth = new Map<number, number>();
-  const visiting = new Set<number>();
-
-  const resolve = (id: number): number => {
-    if (depth.has(id)) return depth.get(id) as number;
-    if (visiting.has(id)) return 0; // guard against cycles
-    visiting.add(id);
-    const g = byId.get(id);
-    let d = 0;
-    if (g) {
-      const sources = [g.a_source_match_id, g.b_source_match_id].filter(
-        (s): s is number => s !== null && byId.has(s)
-      );
-      for (const s of sources) d = Math.max(d, resolve(s) + 1);
-    }
-    visiting.delete(id);
-    depth.set(id, d);
-    return d;
-  };
-
-  for (const g of games) resolve(g.id);
-  return depth;
 }
 
 export default function BracketFlow({
@@ -54,11 +24,6 @@ export default function BracketFlow({
   onSelect: (id: number) => void;
 }) {
   const { t } = useI18n();
-  const stageBadge = (stage: string): string | null => {
-    if (stage === "repechage") return t("stage.repechage");
-    if (stage === "round_robin") return t("stage.roundRobin");
-    return null;
-  };
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const nodeRefs = useRef(new Map<number, HTMLButtonElement>());
   const [connectors, setConnectors] = useState<Connector[]>([]);
@@ -152,7 +117,7 @@ export default function BracketFlow({
             {list.map((g) => {
               const winnerA = g.status === "final" && (g.score_a ?? 0) > (g.score_b ?? 0);
               const winnerB = g.status === "final" && (g.score_b ?? 0) > (g.score_a ?? 0);
-              const badge = stageBadge(g.stage);
+              const badge = stageBadge(g.stage, t);
               return (
                 <button
                   type="button"
